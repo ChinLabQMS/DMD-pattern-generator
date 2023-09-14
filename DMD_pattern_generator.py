@@ -22,11 +22,11 @@ def realSpaceCol(row, col):
     return DMD_COLS - 1 + row//2 - col
 
 class DMDImage:
-    def __init__(self) -> None:
-        pass
     
-    @classmethod
-    def generateTemplate(cls, color=1):
+    def __init__(self) -> None:
+        self.template = None
+    
+    def generateTemplate(self, color=1):
         template = Image.new("RGB", size=(REAL_COLS, REAL_ROWS), color='#ff0000')
 
         for row in range(DMD_ROWS):
@@ -49,8 +49,12 @@ class DMDImage:
         draw.text(corner10, f'({DMD_ROWS-1}, 0)', font=font, fill=0)
         draw.text(corner11, f'({DMD_ROWS-1}, {DMD_COLS-1})', font=font, fill=0)
 
-        template.save(f'DMD_template_{DMD_ROWS}x{DMD_COLS}.bmp')
-        return template.convert("1")
+        filename = f'DMD_template_{DMD_ROWS}x{DMD_COLS}.bmp'
+        template.save(filename)
+        print(f'Template saved as {filename}')
+
+        self.template = template
+        return
 
     @classmethod
     def convertImageToDMDArray(cls, image):
