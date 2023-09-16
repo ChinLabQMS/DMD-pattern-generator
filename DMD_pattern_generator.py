@@ -22,9 +22,12 @@ class DMDPatternPainter:
         # Draw a circle with the given radius and color on the DMD template
         for i in range(max(0, row-radius), min(row+radius+1, self.dmd.template.size[1])):
             for j in range(max(0, col-radius), min(center_col+radius+1, self.dmd.template.size[0])):
-
+                
                 if (i-row)**2 + (j-col)**2 <= radius**2:
-                    self.dmd.template.putpixel((i, j), value=color)
+                    if color == 1:
+                        self.dmd.template.putpixel((j, i), value=(255, 255, 255))
+                    elif color == 0:
+                        self.dmd.template.putpixel((j, i), value=(0, 0, 0))
         
         # Update the DMD array
         self.dmd.convertTemplateToDMDArray()
