@@ -5,109 +5,154 @@ from tkinter.filedialog import askopenfilename
 
 import math
 import os
+import numpy as np
 
 # DMD dimensions
 DMD_ROWS = 1140
 DMD_COLS = 912
 
-class DMDPatternPainter:
-    def __init__(self, dmd):
-        self.dmd = dmd
-
-    def drawCircle(self, row_offset=0, col_offset=0, radius=50, color=1):
-        # Find the real space center coordinates
-        center_row, center_col = self.dmd.template.size[1]//2, self.dmd.template.size[0]//2
-        row, col = center_row + row_offset, center_col + col_offset
-
-        # Draw a circle with the given radius and color on the DMD template
-        for i in range(max(0, row-radius), min(row+radius+1, self.dmd.template.size[1])):
-            for j in range(max(0, col-radius), min(center_col+radius+1, self.dmd.template.size[0])):
-                
-                if (i-row)**2 + (j-col)**2 <= radius**2:
-                    if color == 1:
-                        self.dmd.template.putpixel((j, i), value=(255, 255, 255))
-                    elif color == 0:
-                        self.dmd.template.putpixel((j, i), value=(0, 0, 0))
-        
-        # Update the DMD array
-        self.dmd.convertTemplateToDMDArray()
-
-        return
+class PatternPainter:
+    def __init__(self) -> None:
+        pass
 
 class DMDImage: 
     def __init__(self) -> None:
-        self.template = None
-        self.dmdarray = Image.new("1", (DMD_COLS, DMD_ROWS), color=1)
+        """
+        DMDImage class is used to store the DMD image in a 2D array of 1s and 0s, where 1 
+        represents a white pixel (on) and 0 represents a black pixel (off).
 
+        --------------------
+        Attributes:
+        --------------------
+        template: PIL Image object
+            The template image in real space, which is the image that will be converted to DMD space
+        dmdarray: PIL Image object
+            The DMD image in DMD space, which is the image that will be displayed on the DMD
+        rows: int
+            Number of rows in the DMD image
+        cols: int
+            Number of columns in the DMD image
+        real_rows: int
+            Number of rows in the real space image
+        real_cols: int
+            Number of columns in the real space image
+        """
         self.rows = DMD_ROWS
         self.cols = DMD_COLS
 
         self.real_rows = math.ceil((self.rows-1) / 2) + self.cols
         self.real_cols = self.cols + (self.rows-1) // 2
 
-    # Convert DMD space (row, col) to real space
-    def realSpaceRow(self, row, col):
-        return math.ceil(row / 2) + col
+        self.template = np.full((self.real_rows, self.real_cols, 3), (255, 0, 0), dtype=np.uint8)
+        self.dmdarray = np.full((self.rows, self.cols, 3), 0, dtype=np.uint8)
 
-    def realSpaceCol(self, row, col):
-        return self.cols - 1 + row//2 - col
+        row, col = np.meshgrid(np.arange(self.rows), np.arange(self.cols), indexing='ij')
+        self.dmdrows, self.dmdcols = self.realSpace(row.flatten(), col.flatten())
+
+    def realSpace(self, row, col):
+        """
+        Convert the given DMD space row and column to real space row and column
+        --------------------
+        Parameters:
+        --------------------
+        row: int
+            Row in DMD space
+        col: int
+            Column in DMD space
+        
+        --------------------
+        Returns:
+        --------------------
+        real_row: int
+            Row in real space
+        real_col: int
+            Column in real space
+        """
+        return (np.ceil(row/2)).astype(int) + col, self.cols - 1 + row//2 - col
     
     def setTemplate(self, color=1):
-        # Create a red image in real space
-        template = Image.new("RGB", size=(self.real_cols, self.real_rows), color='#ff0000')
-
+        """
+        Set the template image in real space to a solid color
+        --------------------
+        Parameters:
+        --------------------
+        color: int
+            1 for white (on), 0 for black (off)
+        """
         # Paint all pixels within DMD space to white/black, default is white (on)
-        for row in range(self.rows):
-            for col in range(self.cols):
-                real_row, real_col = self.realSpaceRow(row, col), self.realSpaceCol(row, col)
-                if color == 1:
-                    template.putpixel((real_col, real_row), value=(255, 255, 255))
-                elif color == 0:
-                    template.putpixel((real_col, real_row), value=(0, 0, 0))
+        self.template[self.dmdrows, self.dmdcols, :] = color * np.array([255, 255, 255])
+        self.dmdarray[:] = color * 255
+    
+    def getTemplateImage(self, color=1):
+        """
+        Return a PIL Image object of the template image in real space with labels on the corners
+        --------------------
+        Parameters:
+        --------------------
+        color: int
+            1 for white (on), 0 for black (off)
+        
+        --------------------
+        Returns:
+        --------------------
+        template: PIL Image object
+            The template image in real space
+        """
+        self.setTemplate(color=color)
+        image = Image.fromarray(self.template, mode='RGB')        
         
         # Add labels on the corners
-        draw = ImageDraw.Draw(template)
+        draw = ImageDraw.Draw(image)
         font = ImageFont.truetype("arial.ttf", 30)
 
-        corner00 = self.realSpaceCol(0, 0) - 100, self.realSpaceRow(0, 0)
-        corner10 = self.realSpaceCol(self.rows-1, 0) - 150, self.realSpaceRow(self.rows-1, 0) + 150
-        corner11 = self.realSpaceCol(self.rows-1, self.cols-1) + 50, self.realSpaceRow(self.rows-1, self.cols-1) - 50
+        corner00 = self.realSpace(0, 0)[1] - 100, self.realSpace(0, 0)[0]
+        corner10 = self.realSpace(self.rows-1, 0)[1] - 150, self.realSpace(self.rows-1, 0)[0] + 150
+        corner11 = self.realSpace(self.rows-1, self.cols-1)[1] + 50, self.realSpace(self.rows-1, self.cols-1)[0] - 50
 
         draw.text(corner00, '(0, 0)', font=font, fill=0)
         draw.text(corner10, f'({self.rows-1}, 0)', font=font, fill=0)
         draw.text(corner11, f'({self.rows-1}, {self.cols-1})', font=font, fill=0)
-
-        self.template = template
-        self.convertTemplateToDMDArray()
-
-        return
-    
-    def getTemplate(self, color=1):
-        self.setTemplate(color=color)
-        return self.template
+        return image
 
     def convertImageToDMDArray(self, image):
-        pixels = image.load()
         assert image.size == (self.real_cols, self.real_rows)
-        
-        # Loop through every column and row for the DMD image and assign it 
-        # the corresponding pixel value from the real space image
-        for row in range(self.rows):
-            for col in range(self.cols):
-                real_row, real_col = self.realSpaceRow(row, col), self.realSpaceCol(row, col)
-                self.dmdarray.putpixel((col, row), value=pixels[real_col, real_row])
-        return
+        self.template[:, :, :] = np.asarray(image, dtype=np.uint8)
+        self.convertTemplateToDMDArray()
     
     def convertTemplateToDMDArray(self):
-        self.convertImageToDMDArray(self.template.convert('1'))
-        return
-    
-    def showDMDArray(self):
-        self.dmdarray.show()
-        return
+        # Loop through every column and row for the DMD image and assign it 
+        # the corresponding pixel value from the real space image
+        self.dmdarray[:, :, :] = self.template[self.dmdrows, self.dmdcols, :].reshape(self.rows, self.cols, 3)
     
     def saveDMDArray(self, filename):
-        self.dmdarray.save(filename)
+        image = Image.fromarray(self.dmdarray, mode='RGB')
+        image.save(filename)
+        print('DMD pattern saved as', filename)
+        return image
+    
+    def drawPattern(self, color=1):
+        # Reset the real space template
+        self.setTemplate(color=1-color)
+
+
+    
+    def drawCircle(self, row_offset=0, col_offset=0, radius=50, color=1):
+        # Find the real space center coordinates
+        center_row, center_col = self.template.size[1]//2, self.template.size[0]//2
+        row, col = center_row + row_offset, center_col + col_offset
+
+        # Draw a circle with the given radius and color on the DMD template
+        for i in range(max(0, row-radius), min(row+radius+1, self.template.size[1])):
+            for j in range(max(0, col-radius), min(center_col+radius+1, self.template.size[0])):
+                
+                if (i-row)**2 + (j-col)**2 <= radius**2:
+                    if color == 1:
+                        self.template.putpixel((j, i), value=(255, 255, 255))
+                    elif color == 0:
+                        self.template.putpixel((j, i), value=(0, 0, 0))
+        
+        # Update the DMD array
+        self.convertTemplateToDMDArray()
         return
 
 if __name__ == '__main__':
@@ -120,8 +165,7 @@ if __name__ == '__main__':
 
     # Convert the loaded modified template to a DMD Image
     dmd_image = DMDImage()
-    dmd_image.convertImageToDMDArray(Image.open(file_path).convert('1'))
+    dmd_image.convertImageToDMDArray(Image.open(file_path).convert('RGB'))
 
     # Show the converted DMD pattern and save it to your directory
-    dmd_image.showDMDArray()
-    dmd_image.saveDMDArray(os.path.join(directory, filename_new))
+    dmd_image.saveDMDArray(os.path.join(directory, filename_new)).show()
