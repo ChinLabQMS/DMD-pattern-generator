@@ -23,14 +23,65 @@ class PatternPainter:
         self.ncols = ncols
 
     def drawCircle(self, row_offset=0, col_offset=0, radius=50):
+        """
+        Draw a circle on the rectangular grid
+        --------------------
+        Parameters:
+        --------------------
+        row_offset: int
+            Row offset of the center of the circle
+        col_offset: int
+            Column offset of the center of the circle
+        radius: int
+            Radius of the circle
+
+        --------------------
+        Returns:
+        --------------------
+        corr: int
+            Coordinates of the points in the circle
+        """
         # Find the center coordinates
         center_row, center_col = self.nrows // 2, self.ncols // 2
         row, col = center_row + row_offset, center_col + col_offset
 
         # Draw a filled circle with the given radius
-        ans = [(i, j) for i in range(max(0, row-radius), min(row+radius+1, self.nrows))\
-                for j in range(max(0, col-radius), min(center_col+radius+1, self.ncols)) if (i-row)**2 + (j-col)**2 <= radius**2]
-        return np.array(ans)
+        ans = np.array([(i, j) for i in range(max(0, int(row-radius)), min(int(row+radius+1), self.nrows))\
+                for j in range(max(0, int(col-radius)), min(int(col+radius+1), self.ncols)) \
+                if (i-row)**2 + (j-col)**2 <= radius**2])
+        return ans
+    
+    def drawArrayOfCircle(self, row_spacing=50, col_spacing=50, row_offset=0, col_offset=0, nx=5, ny=5, radius=1):
+        """
+        Draw an array of circles on the rectangular grid
+        --------------------
+        Parameters:
+        --------------------
+        row_spacing: int
+            Spacing between rows of circles
+        col_spacing: int
+            Spacing between columns of circles
+        row_offset: int
+            Row offset of the center of the first circle
+        col_offset: int
+            Column offset of the center of the first circle
+        nx: int
+            Number of circles in each row
+        ny: int
+            Number of circles in each column
+        radius: int
+            Radius of the circles
+
+        --------------------
+        Returns:
+        --------------------
+        corr: int
+            Coordinates of the points in the arrays of circles
+        """
+        corr = [self.drawCircle(row_offset=i*row_spacing+row_offset, 
+                                col_offset=j*col_spacing+col_offset, 
+                                radius=radius) for i in range(nx) for j in range(ny)]
+        return np.concatenate(corr, axis=0)
 
 class DMDImage:
     def __init__(self) -> None:
@@ -72,9 +123,9 @@ class DMDImage:
         --------------------
         Parameters:
         --------------------
-        row: int
+        row: int | array-like
             Row in DMD space
-        col: int
+        col: int | array-like
             Column in DMD space
         
         --------------------
@@ -166,12 +217,30 @@ class DMDImage:
         print('DMD pattern saved as', filename)
         image.show()
     
-    def drawPattern(self, x, y, color=1, reset=False):
+    def drawPattern(self, corr, color=1, reset=False):
+        """
+        Draw a pattern on the DMD image at the given coordinates
+        --------------------
+        Parameters:
+        --------------------
+        corr: int | array-like
+            Coordinates of the points in the pattern
+        color: int
+            1 for white (on), 0 for black (off)
+        reset: bool
+            True to reset the real space template to the default template, False otherwise
+
+        --------------------
+        Returns:
+        --------------------
+        template: PIL Image object
+            The template image in real space
+        """
         # Reset the real space template
         if reset: self.setTemplate(color=1-color)
         
         # Update the pixels on DMD array in real space
-        self.template[x, y] = color * np.array([255, 255, 255])
+        self.template[corr[:, 0], corr[:, 1]] = color * np.array([255, 255, 255])
         self.convertTemplateToDMDArray()
 
         return Image.fromarray(self.template, mode='RGB')
