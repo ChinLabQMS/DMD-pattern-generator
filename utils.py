@@ -215,7 +215,6 @@ class DMDImage:
         image = Image.fromarray(self.dmdarray, mode='RGB')
         image.save(filename)
         print('DMD pattern saved as', filename)
-        image.show()
     
     def drawPattern(self, corr, color=1, reset=False):
         """
