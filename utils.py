@@ -54,7 +54,7 @@ class DMDImage:
         self.real_nrows = math.ceil((self.nrows-1) / 2) + self.ncols
         self.real_ncols = self.ncols + (self.nrows-1) // 2
 
-        self.template = np.full((self.real_rows, self.real_cols, 3), (255, 0, 0), dtype=np.uint8)
+        self.template = np.full((self.real_nrows, self.real_ncols, 3), (255, 0, 0), dtype=np.uint8)
         self.dmdarray = np.full((self.nrows, self.ncols, 3), 0, dtype=np.uint8)
 
         row, col = np.meshgrid(np.arange(self.nrows), np.arange(self.ncols), indexing='ij')
@@ -167,6 +167,8 @@ class DMDImage:
         # Update the pixels on DMD array in real space
         self.template[x, y] = color * np.array([255, 255, 255])
         self.convertTemplateToDMDArray()
+
+        return Image.fromarray(self.template, mode='RGB')
 
 if __name__ == '__main__':
 
