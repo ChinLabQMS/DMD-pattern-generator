@@ -51,7 +51,14 @@ class PatternPainter:
                 if (i-row)**2 + (j-col)**2 <= radius**2])
         return ans
     
-    def drawArrayOfCircle(self, row_spacing=50, col_spacing=50, row_offset=0, col_offset=0, nx=5, ny=5, radius=1):
+    def drawArrayOfCircle(self, 
+                          row_spacing=50, 
+                          col_spacing=50, 
+                          row_offset=0, 
+                          col_offset=0, 
+                          nx=5, 
+                          ny=5, 
+                          radius=1):
         """
         Draw an array of circles on the rectangular grid
         --------------------
@@ -78,10 +85,84 @@ class PatternPainter:
         corr: int
             Coordinates of the points in the arrays of circles
         """
+        if isinstance(nx, int):
+            assert nx >= 0, 'nx must be a non-negative integer'
+            nx = list(range(nx))
+        if isinstance(ny, int):
+            assert ny >= 0, 'ny must be a non-negative integer'
+            ny = list(range(ny))
         corr = [self.drawCircle(row_offset=i*row_spacing+row_offset, 
                                 col_offset=j*col_spacing+col_offset, 
-                                radius=radius) for i in range(nx) for j in range(ny)]
+                                radius=radius) for i in nx for j in ny]
         return np.concatenate(corr, axis=0)
+    
+    def drawHorizontalLine(self, row_offset=0, line_width=1):
+        """
+        Draw a horizontal line on the rectangular grid
+        --------------------
+        Parameters:
+        --------------------
+        row_offset: int
+            Row offset of the center of the line
+        col_offset: int
+            Column offset of the center of the line
+        
+        --------------------
+        Returns:
+        --------------------
+        corr: int
+            Coordinates of the points in the line
+        """
+        # Find the center coordinates
+        row = self.nrows // 2 + row_offset
+
+        assert row >= 0 and row < self.nrows, 'Row offset out of range'
+        ans = np.array([(row + i, j) for j in range(self.ncols) for i in range(line_width)])
+        return ans
+    
+    def drawVerticalLine(self, col_offset=0, line_width=1):
+        """
+        Draw a vertical line on the rectangular grid
+        --------------------
+        Parameters:
+        --------------------
+        row_offset: int
+            Row offset of the center of the line
+        col_offset: int
+            Column offset of the center of the line
+        
+        --------------------
+        Returns:
+        --------------------
+        corr: int
+            Coordinates of the points in the line
+        """
+        # Find the center coordinates
+        col = self.ncols // 2 + col_offset
+
+        assert col >= 0 and col < self.ncols, 'Column offset out of range'
+        ans = np.array([(i, col + j) for i in range(self.nrows) for j in range(line_width)])
+        return ans
+    
+    def drawCross(self, row_offset=0, col_offset=0, line_width=1):
+        """
+        Draw a cross on the rectangular grid
+        --------------------
+        Parameters:
+        --------------------
+        row_offset: int
+            Row offset of the center of the cross
+        col_offset: int
+            Column offset of the center of the cross
+
+        --------------------
+        Returns:
+        --------------------
+        corr: int
+            Coordinates of the points in the cross
+        """
+        return np.concatenate((self.drawHorizontalLine(row_offset=row_offset, line_width=line_width),
+                               self.drawVerticalLine(col_offset=col_offset, line_width=line_width)), axis=0)
 
 class DMDImage:
     def __init__(self) -> None:
@@ -111,6 +192,7 @@ class DMDImage:
         self.real_nrows = math.ceil((self.nrows-1) / 2) + self.ncols
         self.real_ncols = self.ncols + (self.nrows-1) // 2
 
+        # Initialize the template image in real space to red and the DMD image in DMD space
         self.template = np.full((self.real_nrows, self.real_ncols, 3), (255, 0, 0), dtype=np.uint8)
         self.dmdarray = np.full((self.nrows, self.ncols, 3), 0, dtype=np.uint8)
 
@@ -151,7 +233,7 @@ class DMDImage:
         self.template[self.dmdrows, self.dmdcols, :] = color * np.array([255, 255, 255])
         self.dmdarray[:] = color * 255
     
-    def getTemplateImage(self, color=1):
+    def getTemplateImage(self):
         """
         Return a PIL Image object of the template image in real space with labels on the corners
         --------------------
@@ -166,8 +248,7 @@ class DMDImage:
         template: PIL Image object
             The template image in real space
         """
-        self.setTemplate(color=color)
-        image = Image.fromarray(self.template, mode='RGB')        
+        image = Image.fromarray(self.template, mode='RGB')
         
         # Add labels on the corners
         draw = ImageDraw.Draw(image)
@@ -191,7 +272,7 @@ class DMDImage:
         image: PIL Image object
             The real space image to be converted to DMD space
         """
-        assert image.size == (self.real_ncols, self.real_nrows)
+        assert image.size == (self.real_ncols, self.real_nrows), 'Image size does not match DMD template size'
         self.template[:, :, :] = np.asarray(image, dtype=np.uint8)
         self.convertTemplateToDMDArray()
     
@@ -222,7 +303,7 @@ class DMDImage:
         --------------------
         Parameters:
         --------------------
-        corr: int | array-like
+        corr: array-like of shape (N, 2)
             Coordinates of the points in the pattern
         color: int
             1 for white (on), 0 for black (off)
