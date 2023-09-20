@@ -165,7 +165,7 @@ class PatternPainter:
                                self.drawVerticalLine(col_offset=col_offset, line_width=line_width)), axis=0)
 
 class DMDImage:
-    def __init__(self) -> None:
+    def __init__(self, flip=True) -> None:
         """
         DMDImage class is used to store the DMD image in a 2D array of 1s and 0s, where 1 
         represents a white pixel (on) and 0 represents a black pixel (off).
@@ -188,6 +188,7 @@ class DMDImage:
         """
         self.nrows = DMD_ROWS
         self.ncols = DMD_COLS
+        self.flip = flip
 
         self.real_nrows = math.ceil((self.nrows-1) / 2) + self.ncols
         self.real_ncols = self.ncols + (self.nrows-1) // 2
@@ -197,9 +198,9 @@ class DMDImage:
         self.dmdarray = np.full((self.nrows, self.ncols, 3), 0, dtype=np.uint8)
 
         row, col = np.meshgrid(np.arange(self.nrows), np.arange(self.ncols), indexing='ij')
-        self.dmdrows, self.dmdcols = self.realSpace(row.flatten(), col.flatten())
+        self.dmdrows, self.dmdcols = self.realSpace(row.flatten(), col.flatten(), flip=self.flip)
 
-    def realSpace(self, row, col):
+    def realSpace(self, row, col, flip=True):
         """
         Convert the given DMD space row and column to real space row and column
         --------------------
@@ -209,6 +210,8 @@ class DMDImage:
             Row in DMD space
         col: int | array-like
             Column in DMD space
+        flip: bool
+            True to flip the image vertically, False otherwise
         
         --------------------
         Returns:
@@ -218,7 +221,13 @@ class DMDImage:
         real_col: int
             Column in real space
         """
-        return (np.ceil(row/2)).astype(int) + col, self.ncols - 1 + row//2 - col
+        
+        if flip: 
+            real_row, real_col = (np.ceil((self.nrows - 1 - row)/2)).astype(int) + col, self.ncols - 1 + (self.nrows - 1 - row)//2 - col
+        else:
+            real_row, real_col = (np.ceil(row/2)).astype(int) + col, self.ncols - 1 + row//2 - col
+
+        return real_row, real_col
     
     def setTemplate(self, color=1):
         """
@@ -254,9 +263,14 @@ class DMDImage:
         draw = ImageDraw.Draw(image)
         font = ImageFont.truetype("arial.ttf", 30)
 
-        corner00 = self.realSpace(0, 0)[1] - 100, self.realSpace(0, 0)[0]
-        corner10 = self.realSpace(self.nrows-1, 0)[1] - 150, self.realSpace(self.nrows-1, 0)[0] + 150
-        corner11 = self.realSpace(self.nrows-1, self.ncols-1)[1] + 50, self.realSpace(self.nrows-1, self.ncols-1)[0] - 50
+        if self.flip:
+            offset = ((150, -150), (0, 50), (150, 0))
+        else:
+            offset = ((0, -100), (150, -150), (-50, 50))
+
+        corner00 = self.realSpace(0, 0)[1] + offset[0][1], self.realSpace(0, 0)[0] + offset[0][0]
+        corner10 = self.realSpace(self.nrows-1, 0)[1] + offset[1][1], self.realSpace(self.nrows-1, 0)[0] + offset[1][0]
+        corner11 = self.realSpace(self.nrows-1, self.ncols-1)[1] + offset[2][1], self.realSpace(self.nrows-1, self.ncols-1)[0] + offset[2][0]
 
         draw.text(corner00, '(0, 0)', font=font, fill=0)
         draw.text(corner10, f'({self.nrows-1}, 0)', font=font, fill=0)
@@ -322,5 +336,3 @@ class DMDImage:
         # Update the pixels on DMD array in real space
         self.template[corr[:, 0], corr[:, 1]] = color * np.array([255, 255, 255])
         self.convertTemplateToDMDArray()
-
-        return Image.fromarray(self.template, mode='RGB')
