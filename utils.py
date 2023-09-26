@@ -2,6 +2,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 import math
 import numpy as np
+import os
 
 # DMD dimensions
 DMD_ROWS = 1140
@@ -22,7 +23,10 @@ class PatternPainter:
         self.nrows = nrows
         self.ncols = ncols
 
-    def drawCircle(self, row_offset=0, col_offset=0, radius=50):
+    def drawCircle(self, 
+                   row_offset=0, 
+                   col_offset=0, 
+                   radius=50):
         """
         Draw a circle on the rectangular grid
         --------------------
@@ -165,10 +169,16 @@ class PatternPainter:
                                self.drawVerticalLine(col_offset=col_offset, line_width=line_width)), axis=0)
 
 class DMDImage:
-    def __init__(self, flip=True) -> None:
+    def __init__(self, flip=False) -> None:
         """
         DMDImage class is used to store the DMD image in a 2D array of 1s and 0s, where 1 
         represents a white pixel (on) and 0 represents a black pixel (off).
+
+        --------------------
+        Parameters:
+        --------------------
+        flip: bool
+            True to flip the image vertically, False otherwise. Default is False.
 
         --------------------
         Attributes:
@@ -198,9 +208,9 @@ class DMDImage:
         self.dmdarray = np.full((self.nrows, self.ncols, 3), 0, dtype=np.uint8)
 
         row, col = np.meshgrid(np.arange(self.nrows), np.arange(self.ncols), indexing='ij')
-        self.dmdrows, self.dmdcols = self.realSpace(row.flatten(), col.flatten(), flip=self.flip)
+        self.dmdrows, self.dmdcols = self.realSpace(row.flatten(), col.flatten())
 
-    def realSpace(self, row, col, flip=True):
+    def realSpace(self, row, col):
         """
         Convert the given DMD space row and column to real space row and column
         --------------------
@@ -222,7 +232,7 @@ class DMDImage:
             Column in real space
         """
         
-        if flip: 
+        if self.flip: 
             real_row, real_col = (np.ceil((self.nrows - 1 - row)/2)).astype(int) + col, self.ncols - 1 + (self.nrows - 1 - row)//2 - col
         else:
             real_row, real_col = (np.ceil(row/2)).astype(int) + col, self.ncols - 1 + row//2 - col
@@ -298,7 +308,7 @@ class DMDImage:
         # the corresponding pixel value from the real space image
         self.dmdarray[:, :, :] = self.template[self.dmdrows, self.dmdcols, :].reshape(self.nrows, self.ncols, 3)
     
-    def saveDMDArray(self, filename):
+    def saveDMDArray(self, dir, filename):
         """
         Save the DMD image to a BMP file
         --------------------
@@ -307,11 +317,20 @@ class DMDImage:
         filename: str
             Name of the BMP file to be saved
         """
+        if os.path.exists(dir) == False:
+            os.makedirs(dir)
+        dmd_filename = dir + 'pattern_' + filename
+        template_filename = dir + 'template_' + filename
+
         image = Image.fromarray(self.dmdarray, mode='RGB')
-        image.save(filename)
-        print('DMD pattern saved as', filename)
+        image.save(dmd_filename, mode='RGB')
+        print('DMD pattern saved as', dmd_filename)
+
+        image = self.getTemplateImage()
+        image.save(template_filename, mode='RGB')
+        print('Template image saved as', template_filename)
     
-    def drawPattern(self, corr, color=1, reset=False):
+    def drawPattern(self, corr, color=1, reset=True):
         """
         Draw a pattern on the DMD image at the given coordinates
         --------------------
