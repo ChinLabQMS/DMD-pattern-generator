@@ -8,6 +8,8 @@ import os
 DMD_ROWS = 1140
 DMD_COLS = 912
 
+FLIP = True
+
 class PatternPainter:
     def __init__(self, nrows, ncols) -> None:
         """
@@ -169,7 +171,7 @@ class PatternPainter:
                                self.drawVerticalLine(col_offset=col_offset, line_width=line_width)), axis=0)
 
 class DMDImage:
-    def __init__(self, flip=False) -> None:
+    def __init__(self, flip=FLIP) -> None:
         """
         DMDImage class is used to store the DMD image in a 2D array of 1s and 0s, where 1 
         represents a white pixel (on) and 0 represents a black pixel (off).
@@ -178,7 +180,7 @@ class DMDImage:
         Parameters:
         --------------------
         flip: bool
-            True to flip the image vertically, False otherwise. Default is False.
+            True to flip the image vertically, False otherwise.
 
         --------------------
         Attributes:
@@ -248,6 +250,9 @@ class DMDImage:
         color: int
             1 for white (on), 0 for black (off)
         """
+        # Initialize the template image in real space to red and the DMD image in DMD space
+        self.template = np.full((self.real_nrows, self.real_ncols, 3), (255, 0, 0), dtype=np.uint8)
+
         # Paint all pixels within DMD space to white/black, default is white (on)
         self.template[self.dmdrows, self.dmdcols, :] = color * np.array([255, 255, 255])
         self.dmdarray[:] = color * 255
