@@ -247,9 +247,15 @@ class DMDImage:
         --------------------
         Parameters:
         --------------------
-        color: int
+        color: float | array-like
             1 for white (on), 0 for black (off)
+            [r, g, b] for the RGB color
         """
+        if isinstance(color, float):
+            color = 255 * np.array([color, color, color])
+        elif len(color) == 3:
+            color = np.array(color)
+        
         # Initialize the template image in real space to red and the DMD image in DMD space
         self.template = np.full((self.real_nrows, self.real_ncols, 3), (255, 0, 0), dtype=np.uint8)
 
