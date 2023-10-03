@@ -251,7 +251,7 @@ class DMDImage:
             1 for white (on), 0 for black (off)
             [r, g, b] for the RGB color
         """
-        if isinstance(color, float):
+        if isinstance(color, float) or isinstance(color, int):
             color = 255 * np.array([color, color, color])
         elif len(color) == 3:
             color = np.array(color)
@@ -260,8 +260,8 @@ class DMDImage:
         self.template = np.full((self.real_nrows, self.real_ncols, 3), (255, 0, 0), dtype=np.uint8)
 
         # Paint all pixels within DMD space to white/black, default is white (on)
-        self.template[self.dmdrows, self.dmdcols, :] = color * np.array([255, 255, 255])
-        self.dmdarray[:] = color * 255
+        self.template[self.dmdrows, self.dmdcols, :] = color
+        self.dmdarray[:] = color
     
     def getTemplateImage(self):
         """
