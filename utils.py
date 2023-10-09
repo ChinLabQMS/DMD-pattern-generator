@@ -169,6 +169,35 @@ class PatternPainter:
         """
         return np.concatenate((self.drawHorizontalLine(row_offset=row_offset, line_width=line_width),
                                self.drawVerticalLine(col_offset=col_offset, line_width=line_width)), axis=0)
+    
+    def drawStar(self, row_offset=0, col_offset=0, num=10):
+        """
+        Draw a star on the rectangular grid
+        --------------------
+        Parameters:
+        --------------------
+        row_offset: int
+            Row offset of the center of the star
+        col_offset: int
+            Column offset of the center of the star
+        num: int
+            Number of different sectors in the star
+
+        --------------------
+        Returns:
+        --------------------
+        corr: int
+            Coordinates of the points in the star
+        """
+        # Find the center coordinates
+        center_row, center_col = self.nrows // 2, self.ncols // 2
+        row, col = center_row + row_offset, center_col + col_offset
+
+        # Draw a star with the given number of sectors
+        ans = []
+        rows, cols = np.meshgrid(np.arange(self.nrows), np.arange(self.ncols), indexing='ij')
+        
+        return np.array(ans).astype(int)
 
 class DMDImage:
     def __init__(self, flip=FLIP) -> None:
@@ -350,7 +379,7 @@ class DMDImage:
         --------------------
         corr: array-like of shape (N, 2)
             Coordinates of the points in the pattern
-        color: int
+        color: int, color of the pattern
             1 for white (on), 0 for black (off)
         reset: bool
             True to reset the real space template to the default template, False otherwise
