@@ -53,10 +53,10 @@ class PatternPainter:
         row, col = center_row + row_offset, center_col + col_offset
 
         # Draw a filled circle with the given radius
-        ans = np.array([(i, j) for i in range(max(0, int(row-radius)), min(int(row+radius+1), self.nrows))\
+        ans = [(i, j) for i in range(max(0, int(row-radius)), min(int(row+radius+1), self.nrows))\
                 for j in range(max(0, int(col-radius)), min(int(col+radius+1), self.ncols)) \
-                if (i-row)**2 + (j-col)**2 <= radius**2])
-        return ans
+                if (i-row)**2 + (j-col)**2 <= radius**2]
+        return np.array(ans)
     
     def drawArrayOfCircles(self, 
                           row_spacing=50, 
@@ -98,9 +98,14 @@ class PatternPainter:
         if isinstance(ny, int):
             assert ny >= 0, 'ny must be a non-negative integer'
             ny = list(range(ny))
-        corr = [self.drawCircle(row_offset=i*row_spacing+row_offset, 
-                                col_offset=j*col_spacing+col_offset, 
-                                radius=radius) for i in nx for j in ny]
+        corr = []
+        for i in nx:
+            for j in ny:
+                new_circle = self.drawCircle(row_offset=i*row_spacing+row_offset, 
+                                        col_offset=j*col_spacing+col_offset, 
+                                        radius=radius)
+                if new_circle.shape[0] != 0:
+                    corr.append(new_circle)
         return np.concatenate(corr, axis=0)
     
     def drawHorizontalLine(self, row_offset=0, line_width=1):
@@ -285,10 +290,13 @@ class PatternPainter:
         row, col = center_row + row_offset, center_col + col_offset
 
         # Draw a star with the given number of sectors
-        ans = []
+        angle = 2 * np.pi / num
         rows, cols = np.meshgrid(np.arange(self.nrows), np.arange(self.ncols), indexing='ij')
+        rows -= center_row
+        cols -= center_col
+        mask = ((np.arctan2(cols.flatten(), rows.flatten()) // angle) % 2).astype(bool)
         
-        return np.array(ans).astype(int)
+        return np.stack((rows.flatten()[mask] + center_row, cols.flatten()[mask] + center_col)).transpose()
 
 class DMDImage:
     def __init__(self, flip=FLIP) -> None:
@@ -495,4 +503,5 @@ class DMDImage:
         
         # Update the pixels on DMD array in real space
         self.template[corr[:, 0], corr[:, 1]] = color * np.array([255, 255, 255])
+        self.template[self.bgrows, self.bgcols] = np.array([255, 0, 0])
         self.convertTemplateToDMDArray()
