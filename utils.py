@@ -8,6 +8,7 @@ import os
 DMD_ROWS = 1140
 DMD_COLS = 912
 
+# Whether to filp the image vertically
 FLIP = True
 
 class PatternPainter:
@@ -44,7 +45,7 @@ class PatternPainter:
         --------------------
         Returns:
         --------------------
-        corr: int
+        corr: array-like of shape (N, 2)
             Coordinates of the points in the circle
         """
         # Find the center coordinates
@@ -57,7 +58,7 @@ class PatternPainter:
                 if (i-row)**2 + (j-col)**2 <= radius**2])
         return ans
     
-    def drawArrayOfCircle(self, 
+    def drawArrayOfCircles(self, 
                           row_spacing=50, 
                           col_spacing=50, 
                           row_offset=0, 
@@ -88,7 +89,7 @@ class PatternPainter:
         --------------------
         Returns:
         --------------------
-        corr: int
+        corr: array-like of shape (N, 2)
             Coordinates of the points in the arrays of circles
         """
         if isinstance(nx, int):
@@ -116,7 +117,7 @@ class PatternPainter:
         --------------------
         Returns:
         --------------------
-        corr: int
+        corr: array-like of shape (N, 2)
             Coordinates of the points in the line
         """
         # Find the center coordinates
@@ -140,7 +141,7 @@ class PatternPainter:
         --------------------
         Returns:
         --------------------
-        corr: int
+        corr: array-like of shape (N, 2)
             Coordinates of the points in the line
         """
         # Find the center coordinates
@@ -164,11 +165,101 @@ class PatternPainter:
         --------------------
         Returns:
         --------------------
-        corr: int
+        corr: array-like of shape (N, 2)
             Coordinates of the points in the cross
         """
         return np.concatenate((self.drawHorizontalLine(row_offset=row_offset, line_width=line_width),
                                self.drawVerticalLine(col_offset=col_offset, line_width=line_width)), axis=0)
+    
+    def drawHorizontalLines(self, row_spacing=50, row_offset=0, line_width=1, ny=5):
+        """
+        Draw an array of horizontal lines on the rectangular grid
+        --------------------
+        Parameters:
+        --------------------
+        row_spacing: int
+            Spacing between rows of lines
+        row_offset: int
+            Row offset of the center of the first line
+        line_width: int
+            Width of the lines
+        ny: int | array-like
+            Number of lines, or a list of row indices to draw lines on
+        
+        --------------------
+        Returns:
+        --------------------
+        corr: array-like of shape (N, 2)
+            Coordinates of the points in the array of lines
+        """
+        if isinstance(ny, int):
+            assert ny >= 0, 'ny must be a non-negative integer'
+            ny = list(range(ny))
+        corr = [self.drawHorizontalLine(row_offset=i*row_spacing+row_offset, 
+                                        line_width=line_width) for i in ny]
+        return np.concatenate(corr, axis=0)
+    
+    def drawVerticalLines(self, col_spacing=50, col_offset=0, line_width=1, nx=5):
+        """
+        Draw an array of vertical lines on the rectangular grid
+        --------------------
+        Parameters:
+        --------------------
+        col_spacing: int
+            Spacing between columns of lines
+        col_offset: int
+            Column offset of the center of the first line
+                  
+        --------------------
+        Returns:
+        --------------------
+        corr: array-like of shape (N, 2)
+            Coordinates of the points in the array of lines
+        """
+        if isinstance(nx, int):
+            assert nx >= 0, 'nx must be a non-negative integer'
+            nx = list(range(nx))
+        corr = [self.drawVerticalLine(col_offset=j*col_spacing+col_offset, 
+                                      line_width=line_width) for j in nx]
+        return np.concatenate(corr, axis=0)
+    
+    def drawCrosses(self, row_spacing=50, col_spacing=50, row_offset=0, col_offset=0, line_width=1, nx=5, ny=5):
+        """
+        Draw an array of crosses on the rectangular grid
+        --------------------
+        Parameters:
+        --------------------
+        row_spacing: int
+            Spacing between rows of crosses
+        col_spacing: int
+            Spacing between columns of crosses
+        row_offset: int
+            Row offset of the center of the first cross
+        col_offset: int
+            Column offset of the center of the first cross
+        line_width: int
+            Width of the crosses
+        nx: int
+            Number of crosses in each row
+        ny: int
+            Number of crosses in each column
+        
+        --------------------
+        Returns:
+        --------------------
+        corr: array-like of shape (N, 2)
+            Coordinates of the points in the array of crosses
+        """
+        if isinstance(nx, int):
+            assert nx >= 0, 'nx must be a non-negative integer'
+            nx = list(range(nx))
+        if isinstance(ny, int):
+            assert ny >= 0, 'ny must be a non-negative integer'
+            ny = list(range(ny))
+        corr = [self.drawCross(row_offset=i*row_spacing+row_offset, 
+                               col_offset=j*col_spacing+col_offset, 
+                               line_width=line_width) for i in nx for j in ny]
+        return np.concatenate(corr, axis=0)
     
     def drawStar(self, row_offset=0, col_offset=0, num=10):
         """
@@ -241,6 +332,15 @@ class DMDImage:
         row, col = np.meshgrid(np.arange(self.nrows), np.arange(self.ncols), indexing='ij')
         self.dmdrows, self.dmdcols = self.realSpace(row.flatten(), col.flatten())
 
+        mask = np.full((self.real_nrows, self.real_ncols), True, dtype=bool)
+        mask[self.dmdrows, self.dmdcols] = False
+
+        real_row, real_col = np.meshgrid(np.arange(self.real_nrows), np.arange(self.real_ncols), indexing='ij')
+        self.bgrows, self.bgcols = real_row[mask], real_col[mask]
+       
+        if self.bgrows.shape[0] + self.dmdrows.shape[0] != self.real_nrows * self.real_ncols:
+            raise ValueError('Number of pixels in the DMD image does not match the number of pixels in the real space image')
+
     def realSpace(self, row, col):
         """
         Convert the given DMD space row and column to real space row and column
@@ -257,9 +357,9 @@ class DMDImage:
         --------------------
         Returns:
         --------------------
-        real_row: int
+        real_row: int | array-like
             Row in real space
-        real_col: int
+        real_col: int | array-like
             Column in real space
         """
         
