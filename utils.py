@@ -292,11 +292,29 @@ class PatternPainter:
         # Draw a star with the given number of sectors
         angle = 2 * np.pi / num
         rows, cols = np.meshgrid(np.arange(self.nrows), np.arange(self.ncols), indexing='ij')
-        rows -= center_row
-        cols -= center_col
-        mask = ((np.arctan2(cols.flatten(), rows.flatten()) // angle) % 2).astype(bool)
+        mask = ((np.arctan2(cols.flatten() - center_col, rows.flatten() - center_row) // angle) % 2).astype(bool)
         
-        return np.stack((rows.flatten()[mask] + center_row, cols.flatten()[mask] + center_col)).transpose()
+        return np.stack((rows.flatten()[mask], cols.flatten()[mask])).transpose()
+    
+    def drawCheckerBoard(self, size=20):
+        """
+        Draw a checker board on the rectangular grid
+
+        --------------------
+        Parameters:
+        --------------------
+        size: int
+            Side length of one checker board square
+        
+        --------------------
+        Returns:
+        --------------------
+        corr: array-like of shape (N, 2)
+            Coordinates of the points in the checker board
+        """
+        rows, cols = np.meshgrid(np.arange(self.nrows), np.arange(self.ncols), indexing='ij')
+        mask = ((rows.flatten() // size) % 2 + (cols.flatten() // size) % 2) % 2
+        return np.stack((rows.flatten()[mask.astype(bool)], cols.flatten()[mask.astype(bool)])).transpose()
 
 class DMDImage:
     def __init__(self, flip=FLIP) -> None:
@@ -369,8 +387,7 @@ class DMDImage:
             Row in real space
         real_col: int | array-like
             Column in real space
-        """
-        
+        """        
         if self.flip: 
             real_row, real_col = (np.ceil((self.nrows - 1 - row)/2)).astype(int) + col, self.ncols - 1 + (self.nrows - 1 - row)//2 - col
         else:
