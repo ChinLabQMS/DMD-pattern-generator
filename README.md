@@ -1,5 +1,5 @@
 # DMD-pattern-generator
-Generate patterns for calibrate DMD projected images.
+Generate calibration patterns for projector-based structured light system.
 
 ## Usage
 First, install dependencies: `pip3 install -r requirements.txt`
