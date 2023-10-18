@@ -286,8 +286,7 @@ class PatternPainter:
             Coordinates of the points in the star
         """
         # Find the center coordinates
-        center_row, center_col = self.nrows // 2, self.ncols // 2
-        row, col = center_row + row_offset, center_col + col_offset
+        center_row, center_col = self.nrows // 2 + row_offset, self.ncols // 2 + col_offset
 
         # Draw a star with the given number of sectors
         angle = 2 * np.pi / num
@@ -315,6 +314,77 @@ class PatternPainter:
         rows, cols = np.meshgrid(np.arange(self.nrows), np.arange(self.ncols), indexing='ij')
         mask = ((rows.flatten() // size) % 2 + (cols.flatten() // size) % 2) % 2
         return np.stack((rows.flatten()[mask.astype(bool)], cols.flatten()[mask.astype(bool)])).transpose()
+    
+    def drawSquare(self, radius=3, row_offset=0, col_offset=0):
+        """
+        Draw a square on the rectangular grid
+        --------------------
+        Parameters:
+        --------------------
+        radius: int
+            Radius of the square
+        row_offset: int
+            Row offset of the center of the square
+        col_offset: int
+            Column offset of the center of the square
+
+        --------------------
+        Returns:
+        --------------------
+        corr: array-like of shape (N, 2)
+            Coordinates of the points in the square
+        """
+        center_row, center_col = self.nrows // 2 + row_offset, self.ncols // 2 + col_offset
+
+        ans = [(i, j) for i in range(max(0, center_row - radius), min(center_row + radius + 1, self.nrows))\
+                for j in range(max(0, center_col - radius), min(center_col + radius + 1, self.ncols))]
+        
+        return np.array(ans).astype(int)
+    
+    def drawArrayOfSquares(self, row_spacing=50, col_spacing=50, row_offset=0, col_offset=0, nx=5, ny=5, radius=3):
+        """
+        Draw an array of squares on the rectangular grid
+
+        --------------------
+        Parameters:
+        --------------------
+        row_spacing: int
+            Spacing between rows of squares
+        col_spacing: int
+            Spacing between columns of squares
+        row_offset: int
+            Row offset of the center of the first square
+        col_offset: int
+            Column offset of the center of the first square
+        nx: int
+            Number of squares in each row
+        ny: int
+            Number of squares in each column
+        radius: int
+            Radius of the squares
+
+        --------------------
+        Returns:
+        --------------------
+        corr: array-like of shape (N, 2)
+            Coordinates of the points in the array of squares
+        """
+        if isinstance(nx, int):
+            assert nx >= 0, 'nx must be a non-negative integer'
+            nx = list(range(nx))
+        if isinstance(ny, int):
+            assert ny >= 0, 'ny must be a non-negative integer'
+            ny = list(range(ny))
+        
+        corr = []
+        for i in nx:
+            for j in ny:
+                new_square = self.drawSquare(row_offset=i*row_spacing+row_offset, 
+                                        col_offset=j*col_spacing+col_offset, 
+                                        radius=radius)
+                if new_square.shape[0] != 0:
+                    corr.append(new_square)
+        return np.concatenate(corr, axis=0)
 
 class DMDImage:
     def __init__(self, flip=FLIP) -> None:

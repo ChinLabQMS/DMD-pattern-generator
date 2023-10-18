@@ -1,0 +1,18 @@
+%% Import a data file
+[file, path] = uigetfile;
+
+%% Pre-process the data
+data = readmatrix(strcat(path, file), "FileType","text");
+data = data(:, 2:end);
+
+%% Plot the image
+figure
+imagesc(data)
+colorbar
+daspect([1 1 1])
+
+%% Peak finder
+signal = prctile(data, 100, 'all');
+signal
+
+background = prctile(data, 50, 'all')
