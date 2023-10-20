@@ -385,6 +385,90 @@ class PatternPainter:
                 if new_square.shape[0] != 0:
                     corr.append(new_square)
         return np.concatenate(corr, axis=0)
+    
+    def drawHorizontalStrip(self, width=5, row_offset=0):
+        """
+        Draw a horizontal strip on the rectangular grid
+        --------------------
+        Parameters:
+        --------------------
+        width: int
+            Width of the strip
+        row_offset: int
+            Row offset of the top of the strip
+
+        --------------------
+        Returns:
+        --------------------
+        corr: array-like of shape (N, 2)
+            Coordinates of the points in the strip
+        """
+        center_row = self.nrows // 2 + row_offset
+        assert center_row >= 0 and center_row < self.nrows - width, 'Row offset out of range'
+        ans = np.array([(center_row + i, j) for j in range(self.ncols) for i in range(width)])
+        return ans
+    
+    def drawVerticalStrip(self, width=5, col_offset=0):
+        """
+        Draw a vertical strip on the rectangular grid
+        --------------------
+        Parameters:
+        --------------------
+        width: int
+            Width of the strip
+        col_offset: int
+            Column offset of the left of the strip
+
+        --------------------
+        Returns:
+        --------------------
+        corr: array-like of shape (N, 2)
+            Coordinates of the points in the strip
+        """
+        center_col = self.ncols // 2 + col_offset
+        assert center_col >= 0 and center_col < self.ncols - width, 'Column offset out of range'
+        ans = np.array([(i, center_col + j) for i in range(self.nrows) for j in range(width)])
+        return ans
+    
+    def drawHorizontalStrips(self, width=5, row_offset=0):
+        """
+        Draw an array of horizontal strips on the rectangular grid
+        --------------------
+        Parameters:
+        --------------------
+        width: int
+            Width of the strips
+        row_offset: int
+            Row offset of the top of the first strip
+
+        --------------------
+        Returns:
+        --------------------
+        corr: array-like of shape (N, 2)
+            Coordinates of the points in the array of strips
+        """
+        corr = [self.drawHorizontalStrip(width=width, row_offset=i-self.nrows//2) for i in range(row_offset, self.nrows - width, 2*width)]
+        return np.concatenate(corr, axis=0)
+    
+    def drawVerticalStrips(self, width=5, col_offset=0):
+        """
+        Draw an array of vertical strips on the rectangular grid
+        --------------------
+        Parameters:
+        --------------------
+        width: int
+            Width of the strips
+        col_offset: int
+            Column offset of the left of the first strip
+
+        --------------------
+        Returns:
+        --------------------
+        corr: array-like of shape (N, 2)
+            Coordinates of the points in the array of strips
+        """
+        corr = [self.drawVerticalStrip(width=width, col_offset=j-self.ncols//2) for j in range(col_offset, self.ncols - width, 2*width)]
+        return np.concatenate(corr, axis=0)
 
 class DMDImage:
     def __init__(self, flip=FLIP) -> None:
