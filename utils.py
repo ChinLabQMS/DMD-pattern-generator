@@ -4,12 +4,60 @@ import math
 import numpy as np
 import os
 
+from numba import jit
+
 # DMD dimensions
 DMD_ROWS = 1140
 DMD_COLS = 912
 
 # Whether to filp the image vertically
 FLIP = True
+
+class DiffusionPainter:
+    def __init__(self, nrows, ncols) -> None:
+        """
+        DiffusionPainter class is used to generate coordinates of diffusion patterns on a rectangular grid
+        --------------------
+        Parameters:
+        --------------------
+        nrows: int
+            Number of rows in the rectangular grid
+        ncols: int
+            Number of columns in the rectangular grid
+        """
+        self.nrows = nrows
+        self.ncols = ncols
+    
+    @jit(nopython=True)
+    def floyd_steinberg(image):
+        # https://en.wikipedia.org/wiki/Floyd–Steinberg_dithering
+        # https://gist.github.com/bzamecnik/33e10b13aae34358c16d1b6c69e89b01
+
+        # image: np.array of shape (height, width), dtype=float, 0.0-1.0
+        # works in-place!
+        h, w = image.shape
+        for y in range(h):
+            for x in range(w):
+                old = image[y, x]
+                new = np.round(old)
+                image[y, x] = new
+                error = old - new
+
+                # precomputing the constants helps
+                if x + 1 < w:
+                    image[y, x + 1] += error * 0.4375 # right, 7 / 16
+                if (y + 1 < h) and (x + 1 < w):
+                    image[y + 1, x + 1] += error * 0.0625 # right, down, 1 / 16
+                if y + 1 < h:
+                    image[y + 1, x] += error * 0.3125 # down, 5 / 16
+                if (x - 1 >= 0) and (y + 1 < h): 
+                    image[y + 1, x - 1] += error * 0.1875 # left, down, 3 / 16
+
+        return image
+    
+    def drawPattern(self):
+
+        pass
 
 class PatternPainter:
     def __init__(self, nrows, ncols) -> None:
@@ -127,9 +175,7 @@ class PatternPainter:
         """
         # Find the center coordinates
         row = self.nrows // 2 + row_offset
-
-        assert row >= 0 and row < self.nrows, 'Row offset out of range'
-        ans = np.array([(row + i, j) for j in range(self.ncols) for i in range(line_width)])
+        ans = np.array([(row + i, j) for j in range(self.ncols) for i in range(line_width) if row + i < self.nrows and row + i >= 0])
         return ans
     
     def drawVerticalLine(self, col_offset=0, line_width=1):
@@ -151,9 +197,7 @@ class PatternPainter:
         """
         # Find the center coordinates
         col = self.ncols // 2 + col_offset
-
-        assert col >= 0 and col < self.ncols, 'Column offset out of range'
-        ans = np.array([(i, col + j) for i in range(self.nrows) for j in range(line_width)])
+        ans = np.array([(i, col + j) for i in range(self.nrows) for j in range(line_width) if col + j < self.ncols and col + j >= 0])
         return ans
     
     def drawCross(self, row_offset=0, col_offset=0, line_width=1):
@@ -200,8 +244,12 @@ class PatternPainter:
         if isinstance(ny, int):
             assert ny >= 0, 'ny must be a non-negative integer'
             ny = list(range(ny))
-        corr = [self.drawHorizontalLine(row_offset=i*row_spacing+row_offset, 
-                                        line_width=line_width) for i in ny]
+        corr = []
+        for i in ny:
+            new_line = self.drawHorizontalLine(row_offset=i*row_spacing+row_offset, 
+                                        line_width=line_width)
+            if new_line.shape[0] != 0:
+                corr.append(new_line)
         return np.concatenate(corr, axis=0)
     
     def drawVerticalLines(self, col_spacing=50, col_offset=0, line_width=1, nx=5):
@@ -224,8 +272,12 @@ class PatternPainter:
         if isinstance(nx, int):
             assert nx >= 0, 'nx must be a non-negative integer'
             nx = list(range(nx))
-        corr = [self.drawVerticalLine(col_offset=j*col_spacing+col_offset, 
-                                      line_width=line_width) for j in nx]
+        corr = []
+        for j in nx:
+            new_line = self.drawVerticalLine(col_offset=j*col_spacing+col_offset, 
+                                        line_width=line_width)
+            if new_line.shape[0] != 0:
+                corr.append(new_line)
         return np.concatenate(corr, axis=0)
     
     def drawCrosses(self, row_spacing=50, col_spacing=50, row_offset=0, col_offset=0, line_width=1, nx=5, ny=5):
@@ -261,9 +313,9 @@ class PatternPainter:
         if isinstance(ny, int):
             assert ny >= 0, 'ny must be a non-negative integer'
             ny = list(range(ny))
-        corr = [self.drawCross(row_offset=i*row_spacing+row_offset, 
-                               col_offset=j*col_spacing+col_offset, 
-                               line_width=line_width) for i in nx for j in ny]
+        corr = [self.drawHorizontalLines(row_spacing=row_spacing, row_offset=row_offset, line_width=line_width, ny=ny),
+                self.drawVerticalLines(col_spacing=col_spacing, col_offset=col_offset, line_width=line_width, nx=nx)]
+
         return np.concatenate(corr, axis=0)
     
     def drawStar(self, row_offset=0, col_offset=0, num=10):
@@ -469,7 +521,27 @@ class PatternPainter:
         """
         corr = [self.drawVerticalStrip(width=width, col_offset=j-self.ncols//2) for j in range(col_offset, self.ncols - width, 2*width)]
         return np.concatenate(corr, axis=0)
-
+    
+    def drawCalibrationPattern1(self):
+        corr = [self.drawArrayOfCircles(row_spacing=50, 
+                                        col_spacing=50, 
+                                        row_offset=0, 
+                                        col_offset=0, 
+                                        nx=range(-6, 7), 
+                                        ny=range(-6, 7), 
+                                        radius=2),
+                self.drawCircle(row_offset=0, 
+                                col_offset=0, 
+                                radius=5),
+                self.drawCircle(row_offset=200,
+                                col_offset=0,
+                                radius=5),
+                self.drawCircle(row_offset=0,
+                                col_offset=250,
+                                radius=5),
+        ]
+        return np.concatenate(corr, axis=0)
+    
 class DMDImage:
     def __init__(self, flip=FLIP) -> None:
         """
@@ -658,7 +730,7 @@ class DMDImage:
         --------------------
         corr: array-like of shape (N, 2)
             Coordinates of the points in the pattern
-        color: int, color of the pattern
+        color: int | array-like, color of the pattern
             1 for white (on), 0 for black (off)
         reset: bool
             True to reset the real space template to the default template, False otherwise
