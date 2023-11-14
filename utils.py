@@ -522,22 +522,24 @@ class PatternPainter:
         corr = [self.drawVerticalStrip(width=width, col_offset=j-self.ncols//2) for j in range(col_offset, self.ncols - width, 2*width)]
         return np.concatenate(corr, axis=0)
     
-    def drawCalibrationPattern1(self):
-        corr = [self.drawArrayOfCircles(row_spacing=50, 
-                                        col_spacing=50, 
+    def drawCalibrationPattern1(self, 
+                                spacing=50,
+                                anchor=((0, 0), (200, 0), (0, 250))):
+        corr = [self.drawArrayOfCircles(row_spacing=spacing, 
+                                        col_spacing=spacing, 
                                         row_offset=0, 
                                         col_offset=0, 
-                                        nx=range(-6, 7), 
-                                        ny=range(-6, 7), 
+                                        nx=range(-20, 20), 
+                                        ny=range(-20, 20), 
                                         radius=2),
-                self.drawCircle(row_offset=0, 
-                                col_offset=0, 
+                self.drawCircle(row_offset=anchor[0][0], 
+                                col_offset=anchor[0][1], 
                                 radius=5),
-                self.drawCircle(row_offset=200,
-                                col_offset=0,
+                self.drawCircle(row_offset=anchor[1][0],
+                                col_offset=anchor[1][1],
                                 radius=5),
-                self.drawCircle(row_offset=0,
-                                col_offset=250,
+                self.drawCircle(row_offset=anchor[2][0],
+                                col_offset=anchor[2][1],
                                 radius=5),
         ]
         return np.concatenate(corr, axis=0)
