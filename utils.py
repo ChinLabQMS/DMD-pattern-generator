@@ -524,23 +524,25 @@ class PatternPainter:
     
     def drawCalibrationPattern1(self, 
                                 spacing=50,
-                                anchor=((0, 0), (200, 0), (0, 250))):
+                                anchor=((0, 0), (200, 0), (0, 250)),
+                                radius1=2,
+                                radius2=5):
         corr = [self.drawArrayOfCircles(row_spacing=spacing, 
                                         col_spacing=spacing, 
                                         row_offset=0, 
                                         col_offset=0, 
                                         nx=range(-20, 20), 
                                         ny=range(-20, 20), 
-                                        radius=2),
+                                        radius=radius1),
                 self.drawCircle(row_offset=anchor[0][0], 
                                 col_offset=anchor[0][1], 
-                                radius=5),
+                                radius=radius2),
                 self.drawCircle(row_offset=anchor[1][0],
                                 col_offset=anchor[1][1],
-                                radius=5),
+                                radius=radius2),
                 self.drawCircle(row_offset=anchor[2][0],
                                 col_offset=anchor[2][1],
-                                radius=5),
+                                radius=radius2),
         ]
         return np.concatenate(corr, axis=0)
     
