@@ -661,15 +661,24 @@ class DMDImage:
         --------------------
         color: RGB color
         """
-        if isinstance(color, float) and color >= 0 and color <= 1 or \
-            (isinstance(color, int) and color == 0 or color == 1):
-            color = np.floor(255 * np.array([color, color, color])).astype(np.uint8)
-        elif isinstance(color, list) and len(color) == 3 or \
-            (isinstance(color, np.ndarray) and color.shape == (3,)) and np.all(color >= 0) and np.all(color <= 255):
+        if isinstance(color, float) or isinstance(color, int):
+            if (color >= 0 and color <= 1):
+                color = np.floor(255 * np.array([color, color, color])).astype(np.uint8)
+            elif (color >= 0 and color <= 255):
+                color = np.floor([color, color, color]).astype(np.uint8)
+            else:
+                raise ValueError('Invalid color')
+
+        elif (isinstance(color, list) and len(color) == 3) or isinstance(color, np.ndarray):
             color = np.array(color).astype(np.uint8)
+            if color.shape == (3,) and np.all(color >= 0) and np.all(color <= 255):
+                pass
+            else:
+                raise ValueError('Invalid color')
+            
         else:
             raise ValueError('Invalid color')
-
+        
         return color
     
     def setTemplate(self, color=1):
@@ -770,7 +779,7 @@ class DMDImage:
         image.save(template_filename, mode='RGB')
         print('Template image saved as', template_filename)
     
-    def drawPattern(self, corr, color=1, reset=True, template_color=0):
+    def drawPattern(self, corr, color=1, reset=True, template_color=None):
         """
         Draw a pattern on the DMD image at the given coordinates
         --------------------
@@ -791,13 +800,12 @@ class DMDImage:
         """
         # Reset the real space template
         color = self.parseColor(color)
-        print('Drawing pattern with color', color)
-        if reset:
-            template_color = self.parseColor(template_color)
-            print('Resetting template with color', template_color)
-            
-            self.setTemplate(color=template_color)
+        if reset: 
+            if template_color is None:
+                template_color = np.array([255, 255, 255]) - color
+            self.setTemplate(color=self.parseColor(template_color))
         
         # Update the pixels on DMD array in real space
         self.template[corr[:, 0], corr[:, 1]] = color
+        self.template[self.bgrows, self.bgcols, :] = np.array([255, 0, 0])
         self.convertTemplateToDMDArray()
