@@ -522,6 +522,28 @@ class PatternPainter:
         corr = [self.drawVerticalStrip(width=width, col_offset=j-self.ncols//2) for j in range(col_offset, self.ncols - width, 2*width)]
         return np.concatenate(corr, axis=0)
     
+    def drawHorizontalHalfPlane(self,
+                                x_offset=0,
+                                ):
+        """
+        Draw a horizontal half plane on the rectangular grid
+        --------------------
+        Parameters:
+        --------------------
+        x_offset: int
+            x offset of the half plane
+        
+        --------------------
+        Returns:
+        --------------------
+        corr: array-like of shape (N, 2)
+            Coordinates of the points in the half plane
+        """
+        center_col = self.ncols // 2 + x_offset
+        assert center_col >= 0 and center_col < self.ncols, 'Column offset out of range'
+        ans = np.array([(i, j) for i in range(self.nrows) for j in range(center_col, self.ncols)])
+        return ans
+    
     def drawCalibrationPattern1(self, 
                                 spacing=50,
                                 anchor=((0, 0), (200, 0), (0, 250)),
@@ -625,6 +647,31 @@ class DMDImage:
 
         return real_row, real_col
     
+    def parseColor(self, color):
+        """
+        Parse the color argument to a valid color
+        --------------------
+        Parameters:
+        --------------------
+        color: int | float | array-like
+            1 for white (on), 0 for black (off), float for grayscale, list or array-like of shape (3,) for RGB
+        
+        --------------------
+        Returns:
+        --------------------
+        color: RGB color
+        """
+        if isinstance(color, float) and color >= 0 and color <= 1 or \
+            (isinstance(color, int) and color == 0 or color == 1):
+            color = np.floor(255 * np.array([color, color, color])).astype(np.uint8)
+        elif isinstance(color, list) and len(color) == 3 or \
+            (isinstance(color, np.ndarray) and color.shape == (3,)) and np.all(color >= 0) and np.all(color <= 255):
+            color = np.array(color).astype(np.uint8)
+        else:
+            raise ValueError('Invalid color')
+
+        return color
+    
     def setTemplate(self, color=1):
         """
         Set the template image in real space to a solid color
@@ -634,18 +681,15 @@ class DMDImage:
         color: float | array-like
             1 for white (on), 0 for black (off), float for grayscale, list or array-like of shape (3,) for RGB
         """
-        if isinstance(color, float) and color >= 0 and color <= 1 or \
-            (isinstance(color, int) and color == 0 or color == 1):
-            color = np.floor(255 * np.array([color, color, color])).astype(np.uint8)
-        elif isinstance(color, list) and len(color) == 3 or \
-            (isinstance(color, np.ndarray) and color.shape == (3,)) and np.all(color >= 0) and np.all(color <= 255):
-            color = np.array(color).astype(np.uint8)
-        
-        # Initialize the template image in real space to red and the DMD image in DMD space
-        self.template = np.full((self.real_nrows, self.real_ncols, 3), (255, 0, 0), dtype=np.uint8)
+        color = self.parseColor(color)
 
         # Paint all pixels within DMD space to white/black, default is white (on)
         self.template[self.dmdrows, self.dmdcols, :] = color
+
+        # Paint all pixels outside DMD space to red
+        self.template[self.bgrows, self.bgcols, :] = np.array([255, 0, 0])
+
+        # Convert the template image to DMD array
         self.dmdarray[:] = color
     
     def getTemplateImage(self):
@@ -726,7 +770,7 @@ class DMDImage:
         image.save(template_filename, mode='RGB')
         print('Template image saved as', template_filename)
     
-    def drawPattern(self, corr, color=1, reset=True):
+    def drawPattern(self, corr, color=1, reset=True, template_color=0):
         """
         Draw a pattern on the DMD image at the given coordinates
         --------------------
@@ -746,9 +790,14 @@ class DMDImage:
             The template image in real space
         """
         # Reset the real space template
-        if reset: self.setTemplate(color=1-color)
+        color = self.parseColor(color)
+        print('Drawing pattern with color', color)
+        if reset:
+            template_color = self.parseColor(template_color)
+            print('Resetting template with color', template_color)
+            
+            self.setTemplate(color=template_color)
         
         # Update the pixels on DMD array in real space
-        self.template[corr[:, 0], corr[:, 1]] = color * np.array([255, 255, 255])
-        self.template[self.bgrows, self.bgcols] = np.array([255, 0, 0])
+        self.template[corr[:, 0], corr[:, 1]] = color
         self.convertTemplateToDMDArray()

@@ -18,4 +18,4 @@ if __name__ == '__main__':
     dmd_image.convertImageToDMDArray(Image.open(file_path).convert('RGB'))
 
     # Show the converted DMD pattern and save it to your directory
-    dmd_image.saveDMDArray(os.path.join(directory, filename_new))
+    dmd_image.saveDMDArray(directory, filename_new)
