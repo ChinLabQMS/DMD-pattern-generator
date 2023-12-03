@@ -568,6 +568,17 @@ class PatternPainter:
         ]
         return np.concatenate(corr, axis=0)
     
+    def drawCalibrationPattern2(self,
+                                anchor=((0, 0), (200, 0), (0, 250)),
+                                radius=10
+                                ):
+        corr = []
+        for x, y in anchor:
+            corr.append(self.drawCircle(row_offset=x, 
+                                        col_offset=y, 
+                                        radius=radius))
+        return np.concatenate(corr, axis=0)
+    
 class DMDImage:
     def __init__(self, flip=FLIP) -> None:
         """
