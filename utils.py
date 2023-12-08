@@ -156,7 +156,7 @@ class PatternPainter:
                     corr.append(new_circle)
         return np.concatenate(corr, axis=0)
     
-    def drawHorizontalLine(self, row_offset=0, line_width=1):
+    def drawHorizontalLine(self, row_offset=0, half_width=1):
         """
         Draw a horizontal line on the rectangular grid
         --------------------
@@ -164,8 +164,8 @@ class PatternPainter:
         --------------------
         row_offset: int
             Row offset of the center of the line
-        col_offset: int
-            Column offset of the center of the line
+        half_width: int
+            Half width of the line
         
         --------------------
         Returns:
@@ -175,10 +175,10 @@ class PatternPainter:
         """
         # Find the center coordinates
         row = self.nrows // 2 + row_offset
-        ans = np.array([(row + i, j) for j in range(self.ncols) for i in range(line_width) if row + i < self.nrows and row + i >= 0])
+        ans = np.array([(row + i, j) for j in range(self.ncols) for i in range(-half_width, half_width + 1) if row + i < self.nrows and row + i >= 0])
         return ans
     
-    def drawVerticalLine(self, col_offset=0, line_width=1):
+    def drawVerticalLine(self, col_offset=0, half_width=1):
         """
         Draw a vertical line on the rectangular grid
         --------------------
@@ -186,8 +186,8 @@ class PatternPainter:
         --------------------
         row_offset: int
             Row offset of the center of the line
-        col_offset: int
-            Column offset of the center of the line
+        half_width: int
+            Half width of the line
         
         --------------------
         Returns:
@@ -197,10 +197,10 @@ class PatternPainter:
         """
         # Find the center coordinates
         col = self.ncols // 2 + col_offset
-        ans = np.array([(i, col + j) for i in range(self.nrows) for j in range(line_width) if col + j < self.ncols and col + j >= 0])
+        ans = np.array([(i, col + j) for i in range(self.nrows) for j in range(-half_width, half_width + 1) if col + j < self.ncols and col + j >= 0])
         return ans
     
-    def drawCross(self, row_offset=0, col_offset=0, line_width=1):
+    def drawCross(self, row_offset=0, col_offset=0, half_width=1):
         """
         Draw a cross on the rectangular grid
         --------------------
@@ -210,6 +210,8 @@ class PatternPainter:
             Row offset of the center of the cross
         col_offset: int
             Column offset of the center of the cross
+        half_width: int
+            Half width of the lines in the cross
 
         --------------------
         Returns:
@@ -217,10 +219,10 @@ class PatternPainter:
         corr: array-like of shape (N, 2)
             Coordinates of the points in the cross
         """
-        return np.concatenate((self.drawHorizontalLine(row_offset=row_offset, line_width=line_width),
-                               self.drawVerticalLine(col_offset=col_offset, line_width=line_width)), axis=0)
+        return np.concatenate((self.drawHorizontalLine(row_offset=row_offset, half_width=half_width),
+                               self.drawVerticalLine(col_offset=col_offset, half_width=half_width)), axis=0)
     
-    def drawHorizontalLines(self, row_spacing=50, row_offset=0, line_width=1, ny=5):
+    def drawHorizontalLines(self, row_spacing=50, row_offset=0, half_width=1, ny=5):
         """
         Draw an array of horizontal lines on the rectangular grid
         --------------------
@@ -280,7 +282,35 @@ class PatternPainter:
                 corr.append(new_line)
         return np.concatenate(corr, axis=0)
     
-    def drawCrosses(self, row_spacing=50, col_spacing=50, row_offset=0, col_offset=0, line_width=1, nx=5, ny=5):
+    def drawAngledLine(self, angle=45, row_offset=0, col_offset=0, half_width=10):
+        """
+        TODO
+        """
+        assert angle >= 0 and angle < 180, 'Angle must be between 0 and 180 degrees [0, 180)'
+
+        # Find the center coordinates
+        center_row, center_col = self.nrows // 2 + row_offset, self.ncols // 2 + col_offset
+
+        if angle == 0:
+            return self.drawHorizontalLine(row_offset=row_offset, line_width=half_width)
+        elif angle == 90:
+            return self.drawVerticalLine(col_offset=col_offset, line_width=half_width)
+        
+        # Draw a line with the given angle
+        angle = np.deg2rad(angle)
+        rows, cols = np.meshgrid(np.arange(self.nrows), np.arange(self.ncols), indexing='ij')
+        mask = (np.abs((cols - center_col) * np.sin(angle) - (rows - center_row) * np.cos(angle)) < half_width).astype(bool)
+        
+        return np.stack((rows.flatten()[mask], cols.flatten()[mask])).transpose()
+    
+    def drawCrosses(self, 
+                    row_spacing=50, 
+                    col_spacing=50, 
+                    row_offset=0, 
+                    col_offset=0, 
+                    half_width=1, 
+                    nx=5, 
+                    ny=5):
         """
         Draw an array of crosses on the rectangular grid
         --------------------
@@ -523,15 +553,15 @@ class PatternPainter:
         return np.concatenate(corr, axis=0)
     
     def drawHorizontalHalfPlane(self,
-                                x_offset=0,
+                                row_offset=0,
                                 ):
         """
         Draw a horizontal half plane on the rectangular grid
         --------------------
         Parameters:
         --------------------
-        x_offset: int
-            x offset of the half plane
+        row_offset: int
+            row offset of the half plane
         
         --------------------
         Returns:
@@ -539,44 +569,93 @@ class PatternPainter:
         corr: array-like of shape (N, 2)
             Coordinates of the points in the half plane
         """
-        center_col = self.ncols // 2 + x_offset
+        center_row = self.nrows // 2 + row_offset
+        assert center_row >= 0 and center_row < self.nrows, 'Row offset out of range'
+        ans = np.array([(i, j) for i in range(center_row, self.nrows) for j in range(self.ncols)])
+        return ans
+
+    def drawVerticalHalfPlane(self,
+                              col_offset=0,
+                              ):
+        """
+        Draw a vertical half plane on the rectangular grid
+        --------------------
+        Parameters:
+        --------------------
+        col_offset: int
+            column offset of the half plane
+
+        --------------------
+        Returns:
+        --------------------
+        corr: array-like of shape (N, 2)
+            Coordinates of the points in the half plane
+        """
+        center_col = self.ncols // 2 + col_offset
         assert center_col >= 0 and center_col < self.ncols, 'Column offset out of range'
         ans = np.array([(i, j) for i in range(self.nrows) for j in range(center_col, self.ncols)])
         return ans
     
-    def drawCalibrationPattern1(self, 
-                                spacing=50,
-                                anchor=((0, 0), (200, 0), (0, 250)),
-                                radius1=2,
-                                radius2=5):
-        corr = [self.drawArrayOfCircles(row_spacing=spacing, 
-                                        col_spacing=spacing, 
-                                        row_offset=0, 
-                                        col_offset=0, 
-                                        nx=range(-20, 20), 
-                                        ny=range(-20, 20), 
-                                        radius=radius1),
-                self.drawCircle(row_offset=anchor[0][0], 
-                                col_offset=anchor[0][1], 
-                                radius=radius2),
-                self.drawCircle(row_offset=anchor[1][0],
-                                col_offset=anchor[1][1],
-                                radius=radius2),
-                self.drawCircle(row_offset=anchor[2][0],
-                                col_offset=anchor[2][1],
-                                radius=radius2),
-        ]
-        return np.concatenate(corr, axis=0)
-    
-    def drawCalibrationPattern2(self,
-                                anchor=((0, 0), (200, 0), (0, 250)),
-                                radius=10
-                                ):
+    def drawAnchorCircles(self,
+                          anchor=((0, 0), (200, 0), (0, 250)),
+                          radius=10
+                          ):
+        """
+        Draw anchor circles on the rectangular grid
+        --------------------
+        Parameters:
+        --------------------
+        anchor: array-like of shape (N, 2)
+            coordinates of the anchor circles
+        radius: int
+            radius of the anchor circles
+
+        --------------------
+        Returns:
+        --------------------
+        corr: array-like of shape (N, 2)
+            Coordinates of the points in the anchor circles
+        """
         corr = []
         for x, y in anchor:
             corr.append(self.drawCircle(row_offset=x, 
                                         col_offset=y, 
                                         radius=radius))
+        return np.concatenate(corr, axis=0)
+
+    def drawAnchorCirclesWithBackgroundCircles(self, 
+                                                bg_spacing=50,
+                                                bg_radius=2,
+                                                anchor=((0, 0), (200, 0), (0, 250)),
+                                                anchor_radius=5):
+        """
+        Draw anchor circles with background circles on the rectangular grid
+        --------------------
+        Parameters:
+        --------------------
+        bg_spacing: int
+            Spacing between rows and columns of background circles
+        bg_radius: int
+            Radius of the background circles
+        anchor: array-like of shape (N, 2)
+            coordinates of the anchor circles
+        anchor_radius: int
+            Radius of the anchor circles
+
+        --------------------
+        Returns:
+        --------------------
+        corr: array-like of shape (N, 2)
+            Coordinates of the points in the anchor circles with background circles
+        """
+        corr = [self.drawArrayOfCircles(row_spacing=bg_spacing, 
+                                        col_spacing=bg_spacing, 
+                                        row_offset=0, 
+                                        col_offset=0, 
+                                        nx=range(-20, 20), 
+                                        ny=range(-20, 20), 
+                                        radius=bg_radius),
+                self.drawAnchorCircles(anchor=anchor, radius=anchor_radius)]
         return np.concatenate(corr, axis=0)
     
 class DMDImage:
