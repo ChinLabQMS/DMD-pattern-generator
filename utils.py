@@ -73,6 +73,12 @@ class PatternPainter:
         """
         self.nrows = nrows
         self.ncols = ncols
+    
+    def parseRange(self, x):
+        if isinstance(x, int):
+            assert x >= 0, 'x must be a non-negative integer'
+            x = range(x)
+        return x
 
     def drawCircle(self, 
                    row_offset=0, 
@@ -140,12 +146,8 @@ class PatternPainter:
         corr: array-like of shape (N, 2)
             Coordinates of the points in the arrays of circles
         """
-        if isinstance(nx, int):
-            assert nx >= 0, 'nx must be a non-negative integer'
-            nx = list(range(nx))
-        if isinstance(ny, int):
-            assert ny >= 0, 'ny must be a non-negative integer'
-            ny = list(range(ny))
+        nx = self.parseRange(nx)
+        ny = self.parseRange(ny)
         corr = []
         for i in nx:
             for j in ny:
@@ -232,8 +234,8 @@ class PatternPainter:
             Spacing between rows of lines
         row_offset: int
             Row offset of the center of the first line
-        line_width: int
-            Width of the lines
+        half_width: int
+            Half width of the lines
         ny: int | array-like
             Number of lines, or a list of row indices to draw lines on
         
@@ -243,18 +245,16 @@ class PatternPainter:
         corr: array-like of shape (N, 2)
             Coordinates of the points in the array of lines
         """
-        if isinstance(ny, int):
-            assert ny >= 0, 'ny must be a non-negative integer'
-            ny = list(range(ny))
+        ny = self.parseRange(ny)
         corr = []
         for i in ny:
             new_line = self.drawHorizontalLine(row_offset=i*row_spacing+row_offset, 
-                                        line_width=line_width)
+                                        half_width=half_width)
             if new_line.shape[0] != 0:
                 corr.append(new_line)
         return np.concatenate(corr, axis=0)
     
-    def drawVerticalLines(self, col_spacing=50, col_offset=0, line_width=1, nx=5):
+    def drawVerticalLines(self, col_spacing=50, col_offset=0, half_width=1, nx=5):
         """
         Draw an array of vertical lines on the rectangular grid
         --------------------
@@ -264,6 +264,10 @@ class PatternPainter:
             Spacing between columns of lines
         col_offset: int
             Column offset of the center of the first line
+        half_width: int
+            Half width of the lines
+        nx: int | array-like
+            Number of lines, or a list of column indices to draw lines on
                   
         --------------------
         Returns:
@@ -271,20 +275,35 @@ class PatternPainter:
         corr: array-like of shape (N, 2)
             Coordinates of the points in the array of lines
         """
-        if isinstance(nx, int):
-            assert nx >= 0, 'nx must be a non-negative integer'
-            nx = list(range(nx))
+        nx = self.parseRange(nx)
         corr = []
         for j in nx:
             new_line = self.drawVerticalLine(col_offset=j*col_spacing+col_offset, 
-                                        line_width=line_width)
+                                        half_width=half_width)
             if new_line.shape[0] != 0:
                 corr.append(new_line)
         return np.concatenate(corr, axis=0)
     
     def drawAngledLine(self, angle=45, row_offset=0, col_offset=0, half_width=10):
         """
-        TODO
+        Draw an angled line on the rectangular grid
+        --------------------
+        Parameters:
+        --------------------
+        angle: int
+            Angle of the line in degrees
+        row_offset: int
+            Row offset of the center of the line
+        col_offset: int
+            Column offset of the center of the line
+        half_width: int
+            Half width of the line
+
+        --------------------
+        Returns:
+        --------------------
+        corr: array-like of shape (N, 2)
+            Coordinates of the points in the line
         """
         assert angle >= 0 and angle < 180, 'Angle must be between 0 and 180 degrees [0, 180)'
 
@@ -324,8 +343,8 @@ class PatternPainter:
             Row offset of the center of the first cross
         col_offset: int
             Column offset of the center of the first cross
-        line_width: int
-            Width of the crosses
+        half_width: int
+            Half width of the lines in the crosses
         nx: int
             Number of crosses in each row
         ny: int
@@ -337,14 +356,10 @@ class PatternPainter:
         corr: array-like of shape (N, 2)
             Coordinates of the points in the array of crosses
         """
-        if isinstance(nx, int):
-            assert nx >= 0, 'nx must be a non-negative integer'
-            nx = list(range(nx))
-        if isinstance(ny, int):
-            assert ny >= 0, 'ny must be a non-negative integer'
-            ny = list(range(ny))
-        corr = [self.drawHorizontalLines(row_spacing=row_spacing, row_offset=row_offset, line_width=line_width, ny=ny),
-                self.drawVerticalLines(col_spacing=col_spacing, col_offset=col_offset, line_width=line_width, nx=nx)]
+        nx = self.parseRange(nx)
+        ny = self.parseRange(ny)
+        corr = [self.drawHorizontalLines(row_spacing=row_spacing, row_offset=row_offset, half_width=half_width, ny=ny),
+                self.drawVerticalLines(col_spacing=col_spacing, col_offset=col_offset, half_width=half_width, nx=nx)]
 
         return np.concatenate(corr, axis=0)
     
@@ -451,12 +466,8 @@ class PatternPainter:
         corr: array-like of shape (N, 2)
             Coordinates of the points in the array of squares
         """
-        if isinstance(nx, int):
-            assert nx >= 0, 'nx must be a non-negative integer'
-            nx = list(range(nx))
-        if isinstance(ny, int):
-            assert ny >= 0, 'ny must be a non-negative integer'
-            ny = list(range(ny))
+        nx = self.parseRange(nx)
+        ny = self.parseRange(ny)
         
         corr = []
         for i in nx:
