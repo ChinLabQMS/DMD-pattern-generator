@@ -311,14 +311,14 @@ class PatternPainter:
         center_row, center_col = self.nrows // 2 + row_offset, self.ncols // 2 + col_offset
 
         if angle == 0:
-            return self.drawHorizontalLine(row_offset=row_offset, line_width=half_width)
+            return self.drawHorizontalLine(row_offset=row_offset, half_width=half_width)
         elif angle == 90:
-            return self.drawVerticalLine(col_offset=col_offset, line_width=half_width)
+            return self.drawVerticalLine(col_offset=col_offset, half_width=half_width)
         
         # Draw a line with the given angle
         angle = np.deg2rad(angle)
         rows, cols = np.meshgrid(np.arange(self.nrows), np.arange(self.ncols), indexing='ij')
-        mask = (np.abs((cols - center_col) * np.sin(angle) - (rows - center_row) * np.cos(angle)) < half_width).astype(bool)
+        mask = (np.abs((cols - center_col) * np.sin(angle) - (rows - center_row) * np.cos(angle)) <= half_width).astype(bool).flatten()
         
         return np.stack((rows.flatten()[mask], cols.flatten()[mask])).transpose()
     
