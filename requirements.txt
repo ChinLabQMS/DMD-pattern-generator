@@ -2,3 +2,4 @@ numpy
 ipykernel
 pillow
 numba
+matplotlib

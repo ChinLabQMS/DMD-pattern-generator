@@ -5,6 +5,7 @@ import numpy as np
 import os
 
 from numba import jit
+from matplotlib import pyplot as plt
 
 # DMD dimensions
 DMD_ROWS = 1140
@@ -67,49 +68,316 @@ def parseColor(color):
     
     return color
 
-@jit(nopython=True)
-def ditcherFS(image: np.ndarray):
-    """
-    Floyd-Steinberg dithering algorithm
-    --------------------
-    Parameters:
-    --------------------
-    image: np.array of shape (height, width), dtype=float, 0.0-1.0
-        works in-place!
-    --------------------
-    Returns:
-    --------------------
-    image: np.array of shape (height, width), dtype=float, 0.0-1.0
-    """
-    # https://en.wikipedia.org/wiki/Floyd–Steinberg_dithering
-    # https://gist.github.com/bzamecnik/33e10b13aae34358c16d1b6c69e89b01
+class Frame(object):
+    def __init__(self, flip=FLIP) -> None:
+        """
+        Frame class is used to store the DMD image in a 2D array of 1s and 0s, where 1 
+        represents a white pixel (on) and 0 represents a black pixel (off).
 
-    # image: np.array of shape (height, width), dtype=float, 0.0-1.0
-    # works in-place!
-    h, w = image.shape
-    assert np.any(image >= 0) and np.any(image <= 1), 'Image must be in range [0, 1]'
+        --------------------
+        Parameters:
+        --------------------
+        flip: bool
+            True to flip the image vertically, False otherwise.
 
-    for y in range(h):
-        for x in range(w):
-            old = image[y, x]
-            new = np.round(old)
-            image[y, x] = new
-            error = old - new
+        --------------------
+        Attributes:
+        --------------------
+        real_array: PIL Image object
+            The template image in real space, which is the image that will be converted to DMD space
+        dmd_array: PIL Image object
+            The DMD image in DMD space, which is the image that will be displayed on the DMD
+        flip: bool
+            True to flip the image vertically (maybe necessary to get the right conversion), False otherwise
+        dmd_nrows: int
+            Number of rows in the DMD image
+        dmd_ncols: int
+            Number of columns in the DMD image
+        real_nrows: int
+            Number of rows in the real space image
+        real_ncols: int
+            Number of columns in the real space image
+        dmd_rows: array-like of shape (N,)
+            Row coordinates of the pixels in the DMD image
+        dmd_cols: array-like of shape (N,)
+            Column coordinates of the pixels in the DMD image
+        bg_rows: array-like of shape (M,)
+            Row coordinates of the pixels outside the DMD image
+        bg_cols: array-like of shape (M,)
+            Column coordinates of the pixels outside the DMD image
+        """
+        self.dmd_nrows = DMD_ROWS
+        self.dmd_ncols = DMD_COLS
+        self.flip = flip
 
-            # precomputing the constants helps
-            if x + 1 < w:
-                image[y, x + 1] += error * 0.4375 # right, 7 / 16
-            if (y + 1 < h) and (x + 1 < w):
-                image[y + 1, x + 1] += error * 0.0625 # right, down, 1 / 16
-            if y + 1 < h:
-                image[y + 1, x] += error * 0.3125 # down, 5 / 16
-            if (x - 1 >= 0) and (y + 1 < h): 
-                image[y + 1, x - 1] += error * 0.1875 # left, down, 3 / 16
+        self.real_nrows = math.ceil((self.dmd_nrows-1) / 2) + self.dmd_ncols
+        self.real_ncols = self.dmd_ncols + (self.dmd_nrows-1) // 2
 
-    return image
+        # Initialize the template image in real space to red and the DMD image in DMD space
+        self.real_array = np.full((self.real_nrows, self.real_ncols, 3), (255, 0, 0), dtype=np.uint8)
+        self.dmd_array = np.full((self.dmd_nrows, self.dmd_ncols, 3), 0, dtype=np.uint8)
+
+        row, col = np.meshgrid(np.arange(self.dmd_nrows), np.arange(self.dmd_ncols), indexing='ij')
+        self.dmd_rows, self.dmd_cols = self.realSpace(row.flatten(), col.flatten())
+
+        mask = np.full((self.real_nrows, self.real_ncols), True, dtype=bool)
+        mask[self.dmd_rows, self.dmd_cols] = False
+
+        real_row, real_col = np.meshgrid(np.arange(self.real_nrows), np.arange(self.real_ncols), indexing='ij')
+        self.bg_rows, self.bg_cols = real_row[mask], real_col[mask]
+       
+        if self.bg_rows.shape[0] + self.dmd_rows.shape[0] != self.real_nrows * self.real_ncols:
+            raise ValueError('Number of pixels in the DMD image does not match the number of pixels in the real space image')
+
+    def realSpace(self, row, col):
+        """
+        Convert the given DMD space row and column to real space row and column
+        --------------------
+        Parameters:
+        --------------------
+        row: int | array-like
+            Row in DMD space
+        col: int | array-like
+            Column in DMD space
+        flip: bool
+            True to flip the image vertically, False otherwise
+        
+        --------------------
+        Returns:
+        --------------------
+        real_row: int | array-like
+            Row in real space
+        real_col: int | array-like
+            Column in real space
+        """        
+        if self.flip: 
+            real_row, real_col = (np.ceil((self.dmd_nrows - 1 - row)/2)).astype(int) + col, self.dmd_ncols - 1 + (self.dmd_nrows - 1 - row)//2 - col
+        else:
+            real_row, real_col = (np.ceil(row/2)).astype(int) + col, self.dmd_ncols - 1 + row//2 - col
+
+        return real_row, real_col
+    
+    def setRealArray(self, color=1):
+        """
+        Set the real-space array image to a solid color
+        --------------------
+        Parameters:
+        --------------------
+        color: float | array-like
+            1 for white (on), 0 for black (off), float for grayscale, list or array-like of shape (3,) for RGB
+        """
+        color = parseColor(color)
+
+        # Paint all pixels within DMD space to white/black, default is white (on)
+        self.real_array[self.dmd_rows, self.dmd_cols, :] = color
+
+        # Paint all pixels outside DMD space to red
+        self.real_array[self.bg_rows, self.bg_cols, :] = np.array([255, 0, 0])
+
+        # Convert the template image to DMD array
+        self.dmd_array[:] = color
+    
+    def getTemplateImage(self):
+        """
+        Return a PIL Image object of the real-space image with labels on the corners
+        --------------------
+        Parameters:
+        --------------------
+        color: int
+            1 for white (on), 0 for black (off)
+        
+        --------------------
+        Returns:
+        --------------------
+        template: PIL Image object
+            The template image in real space
+        """
+        image = Image.fromarray(self.real_array, mode='RGB')
+        
+        # Add labels on the corners
+        draw = ImageDraw.Draw(image)
+        font = ImageFont.truetype("arial.ttf", 30)
+
+        if self.flip:
+            offset = ((150, -150), (0, 50), (150, 0))
+        else:
+            offset = ((0, -100), (150, -150), (-50, 50))
+
+        corner00 = self.realSpace(0, 0)[1] + offset[0][1], self.realSpace(0, 0)[0] + offset[0][0]
+        corner10 = self.realSpace(self.dmd_nrows-1, 0)[1] + offset[1][1], self.realSpace(self.dmd_nrows-1, 0)[0] + offset[1][0]
+        corner11 = self.realSpace(self.dmd_nrows-1, self.dmd_ncols-1)[1] + offset[2][1], self.realSpace(self.dmd_nrows-1, self.dmd_ncols-1)[0] + offset[2][0]
+
+        draw.text(corner00, '(0, 0)', font=font, fill=0)
+        draw.text(corner10, f'({self.dmd_nrows-1}, 0)', font=font, fill=0)
+        draw.text(corner11, f'({self.dmd_nrows-1}, {self.dmd_ncols-1})', font=font, fill=0)
+        return image
+
+    def loadRealImage(self, image: Image.Image):
+        """
+        Load the given real space image to the real-space array and convert it to DMD space
+        --------------------
+        Parameters:
+        --------------------
+        image: PIL Image object
+            The real space image to be converted to DMD space
+        """
+        assert image.size == (self.real_ncols, self.real_nrows), 'Image size does not match DMD template size'
+        self.real_array[:, :, :] = np.asarray(image, dtype=np.uint8)
+        self.updateDmdArray()
+    
+    def updateDmdArray(self):
+        """
+        Update the DMD array from the real-space array
+        """
+        # Loop through every column and row for the DMD image and assign it 
+        # the corresponding pixel value from the real space image
+        self.dmd_array[:, :, :] = self.real_array[self.dmd_rows, self.dmd_cols, :].reshape(self.dmd_nrows, self.dmd_ncols, 3)
+    
+    def saveDmdArrayToImage(self, dir, filename):
+        """
+        Save the DMD array to a BMP file
+        --------------------
+        Parameters:
+        --------------------
+        filename: str
+            Name of the BMP file to be saved
+        """
+        if os.path.exists(dir) == False:
+            os.makedirs(dir)
+        dmd_filename = dir + 'pattern_' + filename
+        template_filename = dir + 'template_' + filename
+
+        image = Image.fromarray(self.dmd_array, mode='RGB')
+        image.save(dmd_filename, mode='RGB')
+        print('DMD pattern saved as', dmd_filename)
+
+        image = self.getTemplateImage()
+        image.save(template_filename, mode='RGB')
+        print('Template image saved as', template_filename)
+    
+    def drawPattern(self, 
+                    corr, 
+                    color=1, 
+                    reset=True, 
+                    template_color=None, 
+                    bg_color=np.array([255, 0, 0])):
+        """
+        Draw a pattern on the DMD image at the given coordinates
+        --------------------
+        Parameters:
+        --------------------
+        corr: array-like of shape (N, 2)
+            Coordinates of the points in the pattern
+        color: int | array-like, color of the pattern
+            1 for white (on), 0 for black (off)
+        reset: bool
+            True to reset the real space template to the default template, False otherwise
+
+        --------------------
+        Returns:
+        --------------------
+        template: PIL Image object
+            The template image in real space
+        """
+        # Reset the real space template
+        color = parseColor(color)
+        if reset: 
+            if template_color is None:
+                # The default template background color is the inverse of the pattern color
+                template_color = np.array([255, 255, 255]) - color
+            self.setRealArray(color=template_color)
+        
+        # Draw a binary pattern on real-space array
+        self.real_array[corr[:, 0], corr[:, 1]] = color          
+
+        # Fill the background space with red
+        self.real_array[self.bg_rows, self.bg_cols, :] = parseColor(bg_color)
+
+        # Update the pixels in DMD space from the updated real-space array
+        self.updateDmdArray()
+
+class Dither(object):
+
+    @staticmethod
+    @jit(nopython=True)
+    def floyd_steinberg(image: np.ndarray):
+        """
+        Floyd-Steinberg dithering algorithm.
+        https://en.wikipedia.org/wiki/Floyd–Steinberg_dithering
+        https://gist.github.com/bzamecnik/33e10b13aae34358c16d1b6c69e89b01
+        --------------------
+        Parameters:
+        --------------------
+        image: np.array of shape (height, width), dtype=float, 0.0-1.0
+            works in-place!
+        --------------------
+        Returns:
+        --------------------
+        image: np.array of shape (height, width), dtype=float, 0.0-1.0
+        """
+        
+        h, w = image.shape        
+        for y in range(h):
+            for x in range(w):
+                old = image[y, x]
+                new = np.round(old)
+                image[y, x] = new
+                error = old - new
+
+                # precomputing the constants helps
+                if x + 1 < w:
+                    image[y, x + 1] += error * 0.4375 # right, 7 / 16
+                if (y + 1 < h) and (x + 1 < w):
+                    image[y + 1, x + 1] += error * 0.0625 # right, down, 1 / 16
+                if y + 1 < h:
+                    image[y + 1, x] += error * 0.3125 # down, 5 / 16
+                if (x - 1 >= 0) and (y + 1 < h): 
+                    image[y + 1, x - 1] += error * 0.1875 # left, down, 3 / 16
+        
+        return image
+    
+    @staticmethod
+    def cutoff(image: np.ndarray, threshold=0.5):
+        """
+        Cutoff dithering algorithm
+        --------------------
+        Parameters:
+        --------------------
+        image: np.array of shape (height, width), dtype=float, 0.0-1.0
+        threshold: float
+            Threshold for the cutoff dithering algorithm
+        --------------------
+        Returns:
+        --------------------
+        image: np.array of shape (height, width), dtype=float, 0.0-1.0
+        """
+        mask = image >= threshold
+        image[mask] = 1
+        image[~mask] = 0
+        return image
+    
+    @staticmethod
+    def random(image: np.ndarray):
+        """
+        Random dithering algorithm
+        --------------------
+        Parameters:
+        --------------------
+        image: np.array of shape (height, width), dtype=float, 0.0-1.0
+        --------------------
+        Returns:
+        --------------------
+        image: np.array of shape (height, width), dtype=float, 0.0-1.0
+        """
+        mask = (image > np.random.random(image.shape))
+        image[mask] = 1
+        image[~mask] = 0
+        return image
 
 class Painter(object):
-    def __init__(self, nrows, ncols) -> None:
+    def __init__(self, 
+                 nrows, 
+                 ncols) -> None:
         """
         Painter class is used to generate coordinates of patterns on a rectangular grid.
         The "draw" functions return the coordinates of the points in the pattern.
@@ -120,10 +388,15 @@ class Painter(object):
             Number of rows in the rectangular grid
         ncols: int
             Number of columns in the rectangular grid
+        dither_method: str
+            Dithering method to use when converting a gray scale image to a binary image
+            'Floyd-Steinberg': Floyd-Steinberg dithering algorithm
+            'cutoff': Cutoff dithering algorithm
+            'random': Random dithering algorithm
         """
         self.nrows = nrows
         self.ncols = ncols
-       
+    
     def drawCircle(self, 
                    row_offset=0, 
                    col_offset=0, 
@@ -712,258 +985,96 @@ class Painter(object):
                                         radius=bg_radius),
                 self.drawAnchorCircles(anchor=anchor, radius=anchor_radius)]
         return np.concatenate(corr, axis=0)
-    
-class DiffusionPainter(Painter):
-    def __init__(self, nrows, ncols) -> None:
-        """
-        DiffusionPainter class is used to generate coordinates of diffusion patterns on a rectangular grid.
-        The "draw" functions return the coordinates of the points in the pattern.
-        --------------------
-        Parameters:
-        --------------------
-        nrows: int
-            Number of rows in the rectangular grid
-        ncols: int
-            Number of columns in the rectangular grid
-        """
+
+class GrayscalePainter(Painter):
+    def __init__(self, nrows, ncols, dither_method='Floyd-Steinberg') -> None:
         super().__init__(nrows, ncols)
-
-    
-    
-class DMDImage:
-    def __init__(self, flip=FLIP) -> None:
-        """
-        DMDImage class is used to store the DMD image in a 2D array of 1s and 0s, where 1 
-        represents a white pixel (on) and 0 represents a black pixel (off).
-
-        --------------------
-        Parameters:
-        --------------------
-        flip: bool
-            True to flip the image vertically, False otherwise.
-
-        --------------------
-        Attributes:
-        --------------------
-        real_array: PIL Image object
-            The template image in real space, which is the image that will be converted to DMD space
-        dmd_array: PIL Image object
-            The DMD image in DMD space, which is the image that will be displayed on the DMD
-        flip: bool
-            True to flip the image vertically (maybe necessary to get the right conversion), False otherwise
-        dmd_nrows: int
-            Number of rows in the DMD image
-        dmd_ncols: int
-            Number of columns in the DMD image
-        real_nrows: int
-            Number of rows in the real space image
-        real_ncols: int
-            Number of columns in the real space image
-        dmd_rows: array-like of shape (N,)
-            Row coordinates of the pixels in the DMD image
-        dmd_cols: array-like of shape (N,)
-            Column coordinates of the pixels in the DMD image
-        bg_rows: array-like of shape (M,)
-            Row coordinates of the pixels outside the DMD image
-        bg_cols: array-like of shape (M,)
-            Column coordinates of the pixels outside the DMD image
-        """
-        self.dmd_nrows = DMD_ROWS
-        self.dmd_ncols = DMD_COLS
-        self.flip = flip
-
-        self.real_nrows = math.ceil((self.dmd_nrows-1) / 2) + self.dmd_ncols
-        self.real_ncols = self.dmd_ncols + (self.dmd_nrows-1) // 2
-
-        # Initialize the template image in real space to red and the DMD image in DMD space
-        self.real_array = np.full((self.real_nrows, self.real_ncols, 3), (255, 0, 0), dtype=np.uint8)
-        self.dmd_array = np.full((self.dmd_nrows, self.dmd_ncols, 3), 0, dtype=np.uint8)
-
-        row, col = np.meshgrid(np.arange(self.dmd_nrows), np.arange(self.dmd_ncols), indexing='ij')
-        self.dmd_rows, self.dmd_cols = self.realSpace(row.flatten(), col.flatten())
-
-        mask = np.full((self.real_nrows, self.real_ncols), True, dtype=bool)
-        mask[self.dmd_rows, self.dmd_cols] = False
-
-        real_row, real_col = np.meshgrid(np.arange(self.real_nrows), np.arange(self.real_ncols), indexing='ij')
-        self.bg_rows, self.bg_cols = real_row[mask], real_col[mask]
-       
-        if self.bg_rows.shape[0] + self.dmd_rows.shape[0] != self.real_nrows * self.real_ncols:
-            raise ValueError('Number of pixels in the DMD image does not match the number of pixels in the real space image')
-
-    def realSpace(self, row, col):
-        """
-        Convert the given DMD space row and column to real space row and column
-        --------------------
-        Parameters:
-        --------------------
-        row: int | array-like
-            Row in DMD space
-        col: int | array-like
-            Column in DMD space
-        flip: bool
-            True to flip the image vertically, False otherwise
         
-        --------------------
-        Returns:
-        --------------------
-        real_row: int | array-like
-            Row in real space
-        real_col: int | array-like
-            Column in real space
-        """        
-        if self.flip: 
-            real_row, real_col = (np.ceil((self.dmd_nrows - 1 - row)/2)).astype(int) + col, self.dmd_ncols - 1 + (self.dmd_nrows - 1 - row)//2 - col
+        if dither_method == 'Floyd-Steinberg':
+            self.dither = Dither.floyd_steinberg
+        elif dither_method == 'cutoff':
+            self.dither = Dither.cutoff
+        elif dither_method == 'random':
+            self.dither = Dither.random
         else:
-            real_row, real_col = (np.ceil(row/2)).astype(int) + col, self.dmd_ncols - 1 + row//2 - col
-
-        return real_row, real_col
-    
-    def setRealArray(self, color=1):
-        """
-        Set the real-space array image to a solid color
-        --------------------
-        Parameters:
-        --------------------
-        color: float | array-like
-            1 for white (on), 0 for black (off), float for grayscale, list or array-like of shape (3,) for RGB
-        """
-        color = parseColor(color)
-
-        # Paint all pixels within DMD space to white/black, default is white (on)
-        self.real_array[self.dmd_rows, self.dmd_cols, :] = color
-
-        # Paint all pixels outside DMD space to red
-        self.real_array[self.bg_rows, self.bg_cols, :] = np.array([255, 0, 0])
-
-        # Convert the template image to DMD array
-        self.dmd_array[:] = color
-    
-    def getTemplateImage(self):
-        """
-        Return a PIL Image object of the real-space image with labels on the corners
-        --------------------
-        Parameters:
-        --------------------
-        color: int
-            1 for white (on), 0 for black (off)
+            raise ValueError('Invalid dithering method')
         
+        self.pattern = np.zeros((nrows, ncols))
+        self.rows, self.cols = np.meshgrid(np.arange(self.nrows), np.arange(self.ncols), indexing='ij')
+
+    def normalizePattern(self):
+        """
+        Normalize the stored pattern to [0, 1], work in-place
+
         --------------------
         Returns:
         --------------------
-        template: PIL Image object
-            The template image in real space
+        image: np.array of shape (height, width), dtype=float, 0.0-1.0
         """
-        image = Image.fromarray(self.real_array, mode='RGB')
-        
-        # Add labels on the corners
-        draw = ImageDraw.Draw(image)
-        font = ImageFont.truetype("arial.ttf", 30)
-
-        if self.flip:
-            offset = ((150, -150), (0, 50), (150, 0))
+        max_val = self.pattern.max()
+        min_val = self.pattern.min()
+        if max_val == min_val:
+            self.pattern.fill(0)
         else:
-            offset = ((0, -100), (150, -150), (-50, 50))
+            np.copyto(self.pattern, (self.pattern - min_val) / (max_val - min_val))
 
-        corner00 = self.realSpace(0, 0)[1] + offset[0][1], self.realSpace(0, 0)[0] + offset[0][0]
-        corner10 = self.realSpace(self.dmd_nrows-1, 0)[1] + offset[1][1], self.realSpace(self.dmd_nrows-1, 0)[0] + offset[1][0]
-        corner11 = self.realSpace(self.dmd_nrows-1, self.dmd_ncols-1)[1] + offset[2][1], self.realSpace(self.dmd_nrows-1, self.dmd_ncols-1)[0] + offset[2][0]
-
-        draw.text(corner00, '(0, 0)', font=font, fill=0)
-        draw.text(corner10, f'({self.dmd_nrows-1}, 0)', font=font, fill=0)
-        draw.text(corner11, f'({self.dmd_nrows-1}, {self.dmd_ncols-1})', font=font, fill=0)
-        return image
-
-    def loadRealImage(self, image: Image.Image):
+        return self.pattern
+    
+    def displayPattern(self):
         """
-        Load the given real space image to the real-space array and convert it to DMD space
+        Display the stored grayscale pattern and the dithered binary pattern
+        """
+        plt.figure(figsize=(16, 8))
+        plt.subplot(121)
+        plt.imshow(self.pattern, cmap='gray')
+        plt.xticks([])
+        plt.yticks([])
+        plt.title('Grayscale pattern')
+
+        plt.subplot(122)
+        plt.imshow(self.pattern_binary, cmap='gray')
+        plt.xticks([])
+        plt.yticks([])
+        plt.title('Binary pattern')
+
+        plt.tight_layout()
+        plt.show()
+
+    def draw1dLattice(self,
+                      lat_vec=[0.01, 0.01],
+                      x_offset=0,
+                      y_offset=0,
+                      ):
+        """
+        Draw a 1D lattice on the rectangular grid. The intensity is given by sin(2*\pi*k*x) where k is the lattice vector.
         --------------------
         Parameters:
         --------------------
-        image: PIL Image object
-            The real space image to be converted to DMD space
-        """
-        assert image.size == (self.real_ncols, self.real_nrows), 'Image size does not match DMD template size'
-        self.real_array[:, :, :] = np.asarray(image, dtype=np.uint8)
-        self.updateDmdArray()
-    
-    def updateDmdArray(self):
-        """
-        Update the DMD array from the real-space array
-        """
-        # Loop through every column and row for the DMD image and assign it 
-        # the corresponding pixel value from the real space image
-        self.dmd_array[:, :, :] = self.real_array[self.dmd_rows, self.dmd_cols, :].reshape(self.dmd_nrows, self.dmd_ncols, 3)
-    
-    def saveDmdArrayToImage(self, dir, filename):
-        """
-        Save the DMD array to a BMP file
-        --------------------
-        Parameters:
-        --------------------
-        filename: str
-            Name of the BMP file to be saved
-        """
-        if os.path.exists(dir) == False:
-            os.makedirs(dir)
-        dmd_filename = dir + 'pattern_' + filename
-        template_filename = dir + 'template_' + filename
-
-        image = Image.fromarray(self.dmd_array, mode='RGB')
-        image.save(dmd_filename, mode='RGB')
-        print('DMD pattern saved as', dmd_filename)
-
-        image = self.getTemplateImage()
-        image.save(template_filename, mode='RGB')
-        print('Template image saved as', template_filename)
-    
-    def drawPattern(self, 
-                    corr, 
-                    color=1, 
-                    reset=True, 
-                    template_color=None, 
-                    bg_color=np.array([255, 0, 0])):
-        """
-        Draw a pattern on the DMD image at the given coordinates
-        --------------------
-        Parameters:
-        --------------------
-        corr: array-like of shape (N, 2) or (N, 3)
-            Coordinates of the points in the pattern
-        color: int | array-like, color of the pattern
-            1 for white (on), 0 for black (off)
-        reset: bool
-            True to reset the real space template to the default template, False otherwise
-
+        lat_vec: array-like of shape (2,)
+            Lattice vector of the lattice
+        
         --------------------
         Returns:
         --------------------
-        template: PIL Image object
-            The template image in real space
+        corr: array-like of shape (N, 2)
+            Coordinates of the points in the lattice
         """
-        # Reset the real space template
-        color = parseColor(color)
-        if reset: 
-            if template_color is None:
-                # The default template background color is the inverse of the pattern color
-                template_color = np.array([255, 255, 255]) - color
-            self.setRealArray(color=template_color)
+        if isinstance(lat_vec, list):
+            assert len(lat_vec) == 2, 'Lattice vector must be a list of length 2'
+        elif isinstance(lat_vec, np.ndarray):
+            assert lat_vec.shape == (2,), 'Lattice vector must be an array of shape (2,)'
+        else:
+            raise ValueError('Lattice vector must be a list or numpy array of shape (2,)')
         
-        if corr.shape[1] == 2:
-            # Draw a binary pattern
-                  
-            # Update the pixels in real space
-            self.real_array[corr[:, 0], corr[:, 1]] = color          
+        center_row, center_col = self.nrows // 2 + x_offset, self.ncols // 2 + y_offset
 
-        elif corr.shape[1] == 3:
-            # Draw an error-diffused gray-scale pattern
-            assert color == 1, 'Color must be 1 for gray-scale patterns'
-            
-            # Draw a gray-scale image
-            gray_image = np.full((self.real_nrows, self.real_ncols), 255, dtype=np.uint8)
-        
-        # Fill the background space with red
-        self.real_array[self.bg_rows, self.bg_cols, :] = parseColor(bg_color)
+        # Update the 2D array with grayscale pattern
+        np.copyto(self.pattern, np.sin(2 * np.pi * (lat_vec[0]*(self.rows - center_row) + lat_vec[1]*(self.cols - center_col))))
+        self.normalizePattern()
 
-        # Update the pixels in DMD space from the updated real-space array
-        self.updateDmdArray()
+        # Dither to binary image
+        self.pattern_binary = self.dither(self.pattern.copy())
+
+        # Find the coordinates of the points in the lattice
+        mask = (self.pattern_binary == 1).flatten()
+        return np.stack((self.rows.flatten()[mask], self.cols.flatten()[mask])).transpose()
