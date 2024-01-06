@@ -68,6 +68,27 @@ def parseColor(color):
     
     return color
 
+def checkVector(vector):
+    """
+    Check if the given vector is a valid lattice vector
+    --------------------
+    Parameters:
+    --------------------
+    vector: list | array-like
+        Lattice vector to be checked
+
+    --------------------
+    Raises:
+    --------------------
+    ValueError: if the given vector is not a valid lattice vector
+    """
+    if isinstance(vector, list):
+        assert len(vector) == 2, 'Lattice vector 1 must be a list of length 2'
+    elif isinstance(vector, np.ndarray):
+        assert vector.shape == (2,), 'Lattice vector 1 must be an array of shape (2,)'
+    else:
+        raise ValueError('Lattice vector 1 must be a list or numpy array of shape (2,)')
+
 class Frame(object):
     def __init__(self, flip=FLIP) -> None:
         """
@@ -297,6 +318,23 @@ class Frame(object):
         self.updateDmdArray()
 
 class Dither(object):
+    
+    @staticmethod
+    def normalizePattern(image: np.ndarray):
+        """
+        Normalize the stored pattern to [0, 1]
+
+        --------------------
+        Returns:
+        --------------------
+        image: np.array of shape (height, width), dtype=float, 0.0-1.0
+        """
+        max_val = image.max()
+        min_val = image.min()
+        if max_val == min_val:
+            image.fill(0)
+        else:
+            np.copyto(image, (image - min_val) / (max_val - min_val))
 
     @staticmethod
     @jit(nopython=True)
@@ -1000,25 +1038,8 @@ class GrayscalePainter(Painter):
             raise ValueError('Invalid dithering method')
         
         self.pattern = np.zeros((nrows, ncols))
+        self.pattern_binary = np.zeros((nrows, ncols))
         self.rows, self.cols = np.meshgrid(np.arange(self.nrows), np.arange(self.ncols), indexing='ij')
-
-    def normalizePattern(self):
-        """
-        Normalize the stored pattern to [0, 1], work in-place
-
-        --------------------
-        Returns:
-        --------------------
-        image: np.array of shape (height, width), dtype=float, 0.0-1.0
-        """
-        max_val = self.pattern.max()
-        min_val = self.pattern.min()
-        if max_val == min_val:
-            self.pattern.fill(0)
-        else:
-            np.copyto(self.pattern, (self.pattern - min_val) / (max_val - min_val))
-
-        return self.pattern
     
     def displayPattern(self):
         """
@@ -1059,18 +1080,40 @@ class GrayscalePainter(Painter):
         corr: array-like of shape (N, 2)
             Coordinates of the points in the lattice
         """
-        if isinstance(lat_vec, list):
-            assert len(lat_vec) == 2, 'Lattice vector must be a list of length 2'
-        elif isinstance(lat_vec, np.ndarray):
-            assert lat_vec.shape == (2,), 'Lattice vector must be an array of shape (2,)'
-        else:
-            raise ValueError('Lattice vector must be a list or numpy array of shape (2,)')
-        
+        checkVector(lat_vec)
         center_row, center_col = self.nrows // 2 + x_offset, self.ncols // 2 + y_offset
 
         # Update the 2D array with grayscale pattern
-        np.copyto(self.pattern, np.sin(2 * np.pi * (lat_vec[0]*(self.rows - center_row) + lat_vec[1]*(self.cols - center_col))))
-        self.normalizePattern()
+        self.pattern = np.cos(2 * np.pi * (lat_vec[0]*(self.rows - center_row) + lat_vec[1]*(self.cols - center_col)))
+        Dither.normalizePattern(self.pattern)
+
+        # Dither to binary image
+        self.pattern_binary = self.dither(self.pattern.copy())
+
+        # Find the coordinates of the points in the lattice
+        mask = (self.pattern_binary == 1).flatten()
+        return np.stack((self.rows.flatten()[mask], self.cols.flatten()[mask])).transpose()
+    
+    def draw2dLattice(self,
+                      lat_vec1 = [0.01, 0.],
+                      lat_vec2 = [0., 0.01],
+                      x_offset=0, 
+                      y_offset=0,
+                      interference=False,
+                      ):
+        checkVector(lat_vec1)
+        checkVector(lat_vec2)
+        center_row, center_col = self.nrows // 2 + x_offset, self.ncols // 2 + y_offset
+
+        # Update the 2D array with grayscale pattern
+        if not interference:
+            self.pattern = np.cos(2 * np.pi * (lat_vec1[0]*(self.rows - center_row) + lat_vec1[1]*(self.cols - center_col))) + \
+                        np.cos(2 * np.pi * (lat_vec2[0]*(self.rows - center_row) + lat_vec2[1]*(self.cols - center_col)))
+        else:
+            self.pattern = np.cos(2 * np.pi * (lat_vec1[0]*(self.rows - center_row) + lat_vec1[1]*(self.cols - center_col))) + \
+                        np.cos(2 * np.pi * (lat_vec2[0]*(self.rows - center_row) + lat_vec2[1]*(self.cols - center_col))) + \
+                        np.cos(2 * np.pi * ((lat_vec1[0] - lat_vec2[0])*(self.rows - center_row) + (lat_vec1[1] - lat_vec2[1])*(self.cols - center_col)))
+        Dither.normalizePattern(self.pattern)
 
         # Dither to binary image
         self.pattern_binary = self.dither(self.pattern.copy())
