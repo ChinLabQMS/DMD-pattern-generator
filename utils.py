@@ -317,6 +317,10 @@ class Frame(object):
         # Update the pixels in DMD space from the updated real-space array
         self.updateDmdArray()
 
+    def simulateImage(self, wavelength=532,):
+        image = self.real_array.sum(axis=2)
+        image[self.bg_rows, self.bg_cols] = 0
+        
 class Dither(object):
     
     @staticmethod
@@ -440,7 +444,7 @@ class Painter(object):
                    col_offset=0, 
                    radius=50):
         """
-        Draw a circle on the rectangular grid
+        Draw a filled circle on the rectangular grid
         --------------------
         Parameters:
         --------------------
@@ -660,7 +664,7 @@ class Painter(object):
         corr: array-like of shape (N, 2)
             Coordinates of the points in the line
         """
-        assert angle >= 0 and angle < 180, 'Angle must be between 0 and 180 degrees [0, 180)'
+        angle = angle % 180
 
         # Find the center coordinates
         center_row, center_col = self.nrows // 2 + row_offset, self.ncols // 2 + col_offset
@@ -718,6 +722,34 @@ class Painter(object):
 
         return np.concatenate(corr, axis=0)
     
+    def drawAngledCross(self,
+                        angle=45,
+                        row_offset=0,
+                        col_offset=0,
+                        half_width=10):
+        """
+        Draw an angled cross on the rectangular grid
+        --------------------
+        Parameters:
+        --------------------
+        angle: float
+            Angle of the cross in degrees
+        row_offset: int
+            Row offset of the center of the cross
+        col_offset: int
+            Column offset of the center of the cross
+        half_width: int
+            Half width of the lines in the cross
+
+        --------------------
+        Returns:
+        --------------------
+        corr: array-like of shape (N, 2)
+            Coordinates of the points in the cross
+        """
+        return np.concatenate((self.drawAngledLine(angle=angle, row_offset=row_offset, col_offset=col_offset, half_width=half_width),
+                               self.drawAngledLine(angle=angle+90, row_offset=row_offset, col_offset=col_offset, half_width=half_width)), axis=0)
+
     def drawStar(self, row_offset=0, col_offset=0, num=10):
         """
         Draw a star on the rectangular grid
@@ -1024,7 +1056,7 @@ class Painter(object):
                 self.drawAnchorCircles(anchor=anchor, radius=anchor_radius)]
         return np.concatenate(corr, axis=0)
 
-class GrayscalePainter(Painter):
+class DitheredPainter(Painter):
     def __init__(self, nrows, ncols, dither_method='Floyd-Steinberg') -> None:
         super().__init__(nrows, ncols)
         
@@ -1067,7 +1099,7 @@ class GrayscalePainter(Painter):
                       y_offset=0,
                       ):
         """
-        Draw a 1D lattice on the rectangular grid. The intensity is given by sin(2*\pi*k*x) where k is the lattice vector.
+        Draw a 1D lattice on the rectangular grid. The intensity is given by cos(2*\pi*k*x) where k is the lattice vector.
         --------------------
         Parameters:
         --------------------
@@ -1078,7 +1110,7 @@ class GrayscalePainter(Painter):
         Returns:
         --------------------
         corr: array-like of shape (N, 2)
-            Coordinates of the points in the lattice
+            Coordinates of the points in the lattice, ditthered to binary image
         """
         checkVector(lat_vec)
         center_row, center_col = self.nrows // 2 + x_offset, self.ncols // 2 + y_offset
@@ -1101,6 +1133,28 @@ class GrayscalePainter(Painter):
                       y_offset=0,
                       interference=False,
                       ):
+        """
+        Draw a 2D lattice on the rectangular grid. The intensity is given by cos(k1*x) + cos(k2*x) + {cos((k1-k2)*x)} where k1, k2 is the lattice vector.
+        --------------------
+        Parameters:
+        --------------------
+        lat_vec1: array-like of shape (2,)
+            Lattice vector of the first lattice beam
+        lat_vec2: array-like of shape (2,)
+            Lattice vector of the second lattice beam
+        x_offset: int
+            Row offset of the center of the lattice
+        y_offset: int
+            Column offset of the center of the lattice
+        interference: bool
+            True to add interference term to the lattice
+
+        --------------------
+        Returns:
+        --------------------
+        corr: array-like of shape (N, 2)
+            Coordinates of the points in the lattice, ditthered to binary image
+        """
         checkVector(lat_vec1)
         checkVector(lat_vec2)
         center_row, center_col = self.nrows // 2 + x_offset, self.ncols // 2 + y_offset
