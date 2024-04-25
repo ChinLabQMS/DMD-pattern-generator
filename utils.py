@@ -1055,6 +1055,42 @@ class Painter(object):
                                         radius=bg_radius),
                 self.drawAnchorCircles(anchor=anchor, radius=anchor_radius)]
         return np.concatenate(corr, axis=0)
+    
+    def drawAnchorCirclesWithBackgroundGrid(self, 
+                                            bg_spacing=50,
+                                            bg_halfwidth=5,
+                                            anchor=((0, 0), (200, 0), (0, 250)),
+                                            anchor_radius=5):
+        """
+        Draw anchor circles with background grid on the rectangular grid
+        --------------------
+        Parameters:
+        --------------------
+        bg_spacing: int
+            Spacing between rows and columns of the background grid
+        bg_halfwidth: int
+            Half width of the lines in the background grid
+        anchor: array-like of shape (N, 2)
+            coordinates of the anchor circles
+        anchor_radius: int
+            Radius of the anchor circles
+
+        --------------------
+        Returns:
+        --------------------
+        corr: array-like of shape (N, 2)
+            Coordinates of the points in the anchor circles with background grid
+        """
+        corr = [self.drawHorizontalLines(row_spacing=bg_spacing,
+                                        row_offset=0,
+                                        half_width=bg_halfwidth,
+                                        ny=range(-20, 20)),
+                self.drawVerticalLines(col_spacing=bg_spacing,
+                                        col_offset=0,
+                                        half_width=bg_halfwidth,
+                                        nx=range(-20, 20)),
+                self.drawAnchorCircles(anchor=anchor, radius=anchor_radius)]
+        return np.concatenate(corr, axis=0)
 
 class DitheredPainter(Painter):
     def __init__(self, nrows, ncols, dither_method='Floyd-Steinberg') -> None:
