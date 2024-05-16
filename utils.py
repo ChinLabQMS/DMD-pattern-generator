@@ -7,8 +7,12 @@ from numba import jit
 from matplotlib import pyplot as plt
 
 # DMD dimensions
-DMD_ROWS = 1140
-DMD_COLS = 912
+DMD_NROWS = 1140
+DMD_NCOLS = 912
+
+# 45 deg Real-space dimensions
+REAL_NROWS = math.ceil((DMD_NROWS-1) / 2) + DMD_NCOLS
+REAL_NCOLS = DMD_NCOLS + (DMD_NROWS-1) // 2
 
 # Whether to filp the image vertically
 FLIP = True
@@ -103,7 +107,7 @@ class Dither(object):
         return image
 
 class Frame(object):
-    def __init__(self, frame_type='binary', dmd_nrows=DMD_ROWS, dmd_ncols=DMD_COLS, flip=FLIP) -> None:
+    def __init__(self, frame_type='binary', dmd_nrows=DMD_NROWS, dmd_ncols=DMD_NCOLS, flip=FLIP) -> None:
         """
         BasicFrame class is used to store the DMD image in a 2D array of values and perform coordinate conversion between real space and DMD space.
         --------------------
@@ -131,9 +135,9 @@ class Frame(object):
             Number of rows in the real space image
         real_ncols: int
             Number of columns in the real space image
-        dmd_rows: array-like of shape (N,)
+        DMD_NROWS: array-like of shape (N,)
             Row coordinates of the pixels in the real frame that are in the DMD frame
-        dmd_cols: array-like of shape (N,)
+        DMD_NCOLS: array-like of shape (N,)
             Column coordinates of the pixels in the real frame that are in the DMD frame
         bg_rows: array-like of shape (M,)
             Row coordinates of the pixels in the real frame that are outside the DMD frame
@@ -149,15 +153,15 @@ class Frame(object):
 
         # Generate a list of row and col coordinates in dmd space and find their corresponding in real space
         row, col = np.meshgrid(np.arange(self.dmd_nrows), np.arange(self.dmd_ncols), indexing='ij')
-        self.dmd_rows, self.dmd_cols = self.realSpace(row.flatten(), col.flatten())
+        self.DMD_NROWS, self.DMD_NCOLS = self.realSpace(row.flatten(), col.flatten())
 
         # Find the real space row and col coordinates of the pixels outside the DMD image
         mask = np.full((self.real_nrows, self.real_ncols), True, dtype=bool)
-        mask[self.dmd_rows, self.dmd_cols] = False
+        mask[self.DMD_NROWS, self.DMD_NCOLS] = False
         real_row, real_col = np.meshgrid(np.arange(self.real_nrows), np.arange(self.real_ncols), indexing='ij')
         self.bg_rows, self.bg_cols = real_row[mask], real_col[mask]
 
-        if self.bg_rows.shape[0] + self.dmd_rows.shape[0] != self.real_nrows * self.real_ncols:
+        if self.bg_rows.shape[0] + self.DMD_NROWS.shape[0] != self.real_nrows * self.real_ncols:
             raise ValueError('Number of pixels in the DMD image does not match the number of pixels in the real space image')
 
         # Initialize the template image in real space and the DMD image in DMD space
@@ -168,7 +172,7 @@ class Frame(object):
             self.real_frame = np.full((self.real_nrows, self.real_ncols), 0, dtype=np.float32)
             self.dmd_frame = np.full((self.dmd_nrows, self.dmd_ncols), 0, dtype=np.float32)
         elif self.frame_type == 'RGB':
-            self.real_frame = np.full((self.real_nrows, self.real_ncols, 3), (0, 0, 0), dtype=np.uint8)
+            self.real_frame = np.full((self.real_nrows, self.real_ncols, 3), 0, dtype=np.uint8)
             self.dmd_frame = np.full((self.dmd_nrows, self.dmd_ncols, 3), 0, dtype=np.uint8)
         else:
             raise ValueError('Invalid frame type')
@@ -314,7 +318,7 @@ class Frame(object):
         draw.text(corner11, f'({self.dmd_nrows-1}, {self.dmd_ncols-1})', font=font, fill=0)
         return image
     
-    def displayPattern(self):
+    def displayPattern(self, real_space_title='Real-space Image', dmd_space_title='DMD-space Image'):
         """
         Display the real-space and DMD-space image
         """
@@ -324,11 +328,11 @@ class Frame(object):
         plt.subplot(1, 2, 1)
         plt.imshow(real_frame)
         plt.box(True)
-        plt.title('Real Space Image')
+        plt.title(real_space_title)
         plt.subplot(1, 2, 2)
         plt.imshow(dmd_frame)
         plt.box(True)
-        plt.title('DMD Image')
+        plt.title(dmd_space_title)
         plt.show()
     
     def displayRealSpaceImage(self):
@@ -346,9 +350,9 @@ class Frame(object):
         # Loop through every column and row for the DMD image and assign it 
         # the corresponding pixel value from the real space image
         if self.frame_type in ('binary', 'gray'):
-            self.dmd_frame[:, :] = self.real_frame[self.dmd_rows, self.dmd_cols].reshape(self.dmd_nrows, self.dmd_ncols)
+            self.dmd_frame[:, :] = self.real_frame[self.DMD_NROWS, self.DMD_NCOLS].reshape(self.dmd_nrows, self.dmd_ncols)
         elif self.frame_type == 'RGB':
-            self.dmd_frame[:, :, :] = self.real_frame[self.dmd_rows, self.dmd_cols, :].reshape(self.dmd_nrows, self.dmd_ncols, 3)
+            self.dmd_frame[:, :, :] = self.real_frame[self.DMD_NROWS, self.DMD_NCOLS, :].reshape(self.dmd_nrows, self.dmd_ncols, 3)
     
     def saveDmdArrayToImage(self, dir: str, filename: str, save_template: bool=True):
         """
@@ -417,7 +421,7 @@ class Frame(object):
         color = self.parseColor(color)
         if reset: 
             if template_color is None:
-                if len(color) == 1 and self.frame_type in ('binary', 'gray'):
+                if isinstance(color, (int, bool)) and self.frame_type in ('binary', 'gray'):
                     template_color = 1 - color
                 elif len(color) == 3 and self.frame_type == 'RGB':
                     template_color = 255 - color
@@ -437,19 +441,42 @@ class Frame(object):
 
 class BinaryFrame(Frame):
     def __init__(self) -> None:
+        """
+        BinaryFrame class is used to store the binary image in a 2D array of boolean values and perform coordinate conversion between real space and DMD space.
+        """
         super().__init__(frame_type='binary')
-
 
     def simulateImage(self, wavelength=532,):
         image = self.real_frame.sum(axis=2)
         image[self.bg_rows, self.bg_cols] = 0
+    
+    def convertToGrayFrame(self):
+        """
+        Convert the binary frame to a grayscale frame
+        """
+        gray_frame = GrayFrame()
+        gray_frame.real_frame[:, :] = self.real_frame.astype(np.float32)
+        gray_frame.updateDmdArray()
+        return gray_frame
+    
+    def convertToColorFrame(self):
+        """
+        Convert the binary frame to an RGB frame
+        """
+        real_frame, dmd_frame = self.getFrameRGB()
+        color_frame = ColorFrame()
+        color_frame.real_frame[:, :, :] = real_frame
+        color_frame.dmd_frame[:, :, :] = dmd_frame
+        return color_frame
 
 
 class GrayFrame(Frame):
     def __init__(self, ditcher='Floyd-Steinberg') -> None:
+        """
+        GrayFrame class is used to store the grayscale image in a 2D array of float values and perform coordinate conversion between real space and DMD space.
+        """
         super().__init__(frame_type='gray')       
-        self.real_binary = np.zeros((self.real_nrows, self.real_ncols), dtype=bool)
-        self.dmd_binary = np.zeros((self.dmd_nrows, self.dmd_ncols), dtype=bool)
+        self.binary_frame = BinaryFrame()
         if ditcher == 'Floyd-Steinberg':
             self.dither = Dither.floyd_steinberg
         elif ditcher == 'cutoff':
@@ -460,6 +487,22 @@ class GrayFrame(Frame):
             raise ValueError('Invalid dithering algorithm')
     
     def drawPattern(self, corr, color=1, reset=True, template_color=None, bg_color=0):
+        """
+        Draw a pattern on the real-space frame at the given coordinates
+        --------------------
+        Parameters:
+        --------------------
+        corr: array-like of shape (N, 2) | (N, 3)
+            Coordinates of the points in the pattern
+        color: int | array-like, color of the pattern
+            1 for white (on), 0 for black (off)
+        reset: bool
+            True to reset the real space template to the default template, False otherwise
+        template_color: int | array-like, color of the template
+            1 for white (on), 0 for black (off)
+        bg_color: int | array-like, color of the background
+            1 for white (on), 0 for black (off)
+        """
         assert isinstance(corr, np.ndarray) and corr.ndim == 2, 'corr must be a 2D numpy array'
         if corr.shape[1] == 2:
             super().drawPattern(corr, color, reset, template_color, bg_color)
@@ -471,10 +514,10 @@ class GrayFrame(Frame):
     
     def ditherPattern(self):
         """
-        Dither the real-space image to a binary image
+        Dither the real-space image to a binary image and update the DMD array
         """
-        self.real_binary = self.dither(self.real_frame, inplace=False).astype(bool)
-        self.dmd_binary = self.real_binary[self.dmd_rows, self.dmd_cols].reshape(self.dmd_nrows, self.dmd_ncols)
+        self.binary_frame.real_frame = self.dither(self.real_frame, inplace=False).astype(bool)
+        self.binary_frame.updateDmdArray()
 
     def displayPattern(self):
         """
@@ -486,7 +529,7 @@ class GrayFrame(Frame):
         plt.box(True)
         plt.title('Real-space Image')
         plt.subplot(2, 2, 2)
-        plt.imshow(self.real_binary, cmap='gray')
+        plt.imshow(self.binary_frame.real_frame, cmap='gray')
         plt.box(True)
         plt.title('Dithered Real-space Image')
         plt.subplot(2, 2, 3)
@@ -494,14 +537,14 @@ class GrayFrame(Frame):
         plt.box(True)
         plt.title('DMD-space Image')
         plt.subplot(2, 2, 4)
-        plt.imshow(self.dmd_binary, cmap='gray')
+        plt.imshow(self.binary_frame.dmd_frame, cmap='gray')
         plt.box(True)
         plt.title('Dithered DMD-space Image')
         plt.show()
 
-    def saveDmdBinaryToImage(self, dir, filename, save_template=True):
+    def saveDmdArrayToImage(self, dir, filename, save_template=True, save_binary=True):
         """
-        Save the DMD binary frame to a BMP file
+        Save the DMD frame to a BMP file
         --------------------
         Parameters:
         --------------------
@@ -511,31 +554,35 @@ class GrayFrame(Frame):
             Name of the BMP file to be saved
         save_template: bool
             True to save the real space template image, False otherwise
+        save_binary: bool
+            True to save the dithered binary image, False otherwise
         """
-        bin_dir = dir + '/binary/'
-        if os.path.exists(bin_dir) == False: os.makedirs(bin_dir)
-
-        dmd_filename = os.path.relpath(bin_dir + 'pattern_' + filename)
-        template_filename = bin_dir + 'template_' + filename
-
-        dmd_image = Image.fromarray(self.dmd_binary, mode='1')
-        dmd_image.save(dmd_filename, mode='1')
-        print(f'DMD binary pattern saved as: .\{dmd_filename}')
-
-        if save_template:
-            template_image = Image.fromarray(self.real_binary, mode='1')
-            template_image.save(template_filename, mode='1')
-            print(f'Template binary image saved as: .\{template_filename}')
-    
-
-    def saveDmdArrayToImage(self, dir, filename, save_template=True, save_binary=True):
         super().saveDmdArrayToImage(dir, filename, save_template)
-        if save_binary:
-            self.saveDmdBinaryToImage(dir, filename, save_template)
+        if save_binary: self.binary_frame.saveDmdArrayToImage(dir + '/binary/', filename, save_template)
+
+    def convertToBinaryFrame(self):
+        """
+        Convert the grayscale frame to a binary frame
+        """
+        self.ditherPattern()
+        return self.binary_frame
+    
+    def convertToColorFrame(self):
+        """
+        Convert the grayscale frame to an RGB frame
+        """
+        real_frame, dmd_frame = self.getFrameRGB()
+        color_frame = ColorFrame()
+        color_frame.real_frame[:, :, :] = real_frame
+        color_frame.dmd_frame[:, :, :] = dmd_frame
+        return color_frame
 
 
 class ColorFrame(Frame):
     def __init__(self) -> None:
+        """
+        ColorFrame class is used to store the RGB image in a 3D array of uint8 values and perform coordinate conversion between real space and DMD space.
+        """
         super().__init__(frame_type='RGB')
     
     def loadFromFile(self, file_path):
@@ -551,9 +598,22 @@ class ColorFrame(Frame):
         self.real_frame[:, :, :] = np.asarray(image, dtype=np.uint8)
         self.updateDmdArray()
 
+    def unpackFrames(self):
+        """
+        Unpack the real-space image to 24 binary frames
+        """
+        binary_frames = [BinaryFrame() for _ in range(24)]
+        for i in range(3):
+            real_frame = self.real_frame[:, :, i]
+            dmd_frame = self.dmd_frame[:, :, i]
+            for j in range(8):
+                binary_frames[i*8+j].real_frame[:, :] = real_frame & (0b00000001 << j)
+                binary_frames[i*8+j].dmd_frame[:, :] = dmd_frame & (0b00000001 << j)
+        return binary_frames
+
 
 class Painter(object):
-    def __init__(self, nrows, ncols) -> None:
+    def __init__(self, nrows=REAL_NROWS, ncols=REAL_NCOLS) -> None:
         """
         Painter class is used to generate coordinates of patterns on a rectangular grid.
         The "draw" functions return the coordinates of the points in the pattern.
@@ -1328,7 +1388,7 @@ class Painter(object):
     
 
 class GrayscalePainter(Painter):
-    def __init__(self, nrows, ncols) -> None:
+    def __init__(self, nrows=REAL_NROWS, ncols=REAL_NCOLS) -> None:
         super().__init__(nrows, ncols)
         self.rows, self.cols = np.meshgrid(np.arange(nrows), np.arange(ncols), indexing='ij')
         self.rows, self.cols = self.rows.flatten().astype(int), self.cols.flatten().astype(int)
@@ -1424,18 +1484,85 @@ class GrayscalePainter(Painter):
 
 
 class BinarySequence(object):
-    def __init__(self, nframes=24) -> None:
-        self.nframes = nframes
+    def __init__(self, nframes: int=24) -> None:
+        """
+        BinarySequence class is used to store a sequence of binary frames and perform operations on the sequence.
+        --------------------
+        Parameters:
+        --------------------
+        nframes: int
+            Number of binary frames in the sequence
+        """
+        assert isinstance(nframes, int) and nframes > 0, 'Number of frames must be a positive integer'
         self.frames = [BinaryFrame() for _ in range(nframes)]
-
-class ColorSequence(object):
-    def __init__(self, nframes=2) -> None:
+        self.RGB_frames = None
         self.nframes = nframes
-        self.frames = [ColorFrame() for _ in range(nframes)]
+        self.dmd_nrows, self.dmd_ncols = self.frames[0].dmd_frame.shape
+        self.real_nrows, self.real_ncols = self.frames[0].real_frame.shape
+    
+    def packFrames(self):
+        """
+        Pack the binary frames to a list of RGB color frame
+        """
+        self.RGB_frames = [ColorFrame() for _ in range(math.ceil(self.nframes / 24))]
+        for i in range(self.nframes):
+            i_RGB = i // 24
+            i_color = (i % 24) // 8
+            i_bit = (i % 24) % 8
+            self.RGB_frames[i_RGB].real_frame[:, :, i_color] = self.RGB_frames[i_RGB].real_frame[:, :, i_color] + self.frames[i].real_frame[:, :] * (0b00000001 << i_bit)
+            self.RGB_frames[i_RGB].dmd_frame[:, :, i_color] = self.RGB_frames[i_RGB].dmd_frame[:, :, i_color] + self.frames[i].dmd_frame[:, :] * (0b00000001 << i_bit)
 
-class SequencePainter(object):
-    def __init__(self, nrows, ncols, nframes) -> None:
-        self.nrows = nrows
-        self.ncols = ncols
-        self.nframes = nframes
-        self.painter = Painter(nrows, ncols)
+    def drawPatternOnFrame(self, i, corr, color=1, reset=True, template_color=None):
+        """
+        Draw a pattern on the binary frame
+        --------------------
+        Parameters:
+        --------------------
+        i: int
+            Index of the binary frame to draw the pattern
+        corr: array-like of shape (N, 2)
+            Coordinates of the points in the pattern
+        color: int
+            Color of the pattern, black or white (0 or 1)
+        reset: bool
+            True to reset the frame before drawing the pattern
+        template_color: int
+            Color of the template, black or white (0 or 1)
+        """
+        assert isinstance(i, int) and i >= 0 and i < self.nframes, 'Index out of range'
+        assert isinstance(corr, np.ndarray) and corr.shape[1] == 2, 'Invalid coordinates'
+        self.frames[i].drawPattern(corr, color, reset, template_color)
+
+    def saveRGBFrames(self, path: str, filename: str):
+        """
+        Save the packed RGB frames to a folder
+        --------------------
+        Parameters:
+        --------------------
+        path: str
+            Path to the folder to save the RGB frames
+        filename: str
+            Name of the RGB frames
+        """
+        for i, frame in enumerate(self.RGB_frames):
+            frame.saveDmdArrayToImage(path, f'RGB_{i+1}_'+ filename)
+
+    def displayRGBFrames(self, start=0, end=None):
+        """
+        Display the packed RGB frames
+        """
+        if self.RGB_frames is None:
+            self.packFrames()
+        if end is None:
+            end = len(self.RGB_frames)
+        for i in range(start, end):
+            self.RGB_frames[i].displayPattern(real_space_title=f'RGB_{i+1} Real Space', dmd_space_title=f'RGB_{i+1} DMD Space')
+    
+    def displayBinaryFrames(self, start=0, end=None):
+        """
+        Display the binary frames
+        """
+        if end is None:
+            end = self.nframes
+        for i in range(start, end):
+            self.frames[i].displayPattern(real_space_title=f'Binary_{i+1} Real Space', dmd_space_title=f'Binary_{i+1} DMD Space')
