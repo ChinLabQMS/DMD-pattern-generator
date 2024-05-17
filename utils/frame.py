@@ -645,7 +645,7 @@ class BinarySequence(object):
         self.dmd_nrows, self.dmd_ncols = self.frames[0].dmd_frame.shape
         self.real_nrows, self.real_ncols = self.frames[0].real_frame.shape
     
-    def packFrames(self):
+    def packFramesToRGB(self):
         """
         Pack the binary frames to a list of RGB color frame
         """
@@ -689,6 +689,7 @@ class BinarySequence(object):
         filename: str
             Name of the RGB frames
         """
+        if self.RGB_frames is None: self.packFramesToRGB()
         for i, frame in enumerate(self.RGB_frames):
             frame.saveFrameToFile(path, f'RGB_{i+1}_' + filename)
 
@@ -706,11 +707,32 @@ class BinarySequence(object):
         for i, frame in enumerate(self.frames):
             frame.saveFrameToFile(path, f'Binary_{i+1}_'+ filename)
 
+    def saveSequenceToGIF(self, path: str, filename: str, duration=200):
+        """
+        Save the sequence of binary frames to a GIF file
+        --------------------
+        Parameters:
+        --------------------
+        path: str
+            Path to the folder to save the GIF file
+        filename: str
+            Name of the GIF file
+        duration: int
+            Duration of each frame in milliseconds
+        """
+        if filename[-4:] != '.gif': filename += '.gif'
+        if os.path.exists(path) == False: os.makedirs(path)
+        filename = os.path.relpath(path + '/' + filename)
+
+        images = [Image.fromarray(frame.getFrameRGB()[0], mode='RGB') for frame in self.frames]
+        images[0].save(filename, save_all=True, append_images=images[1:], duration=duration, loop=0)
+        print(f'GIF file saved as: .\{filename}')
+
     def displayRGBFrames(self, start=0, end=None):
         """
         Display the packed RGB frames
         """
-        if self.RGB_frames is None: self.packFrames()
+        if self.RGB_frames is None: self.packFramesToRGB()
         if end is None: end = len(self.RGB_frames)
         for i in range(start, end):
             self.RGB_frames[i].displayPattern(real_space_title=f'RGB_{i+1} Real Space', dmd_space_title=f'RGB_{i+1} DMD Space')
