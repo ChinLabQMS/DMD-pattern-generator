@@ -318,9 +318,18 @@ class Frame(object):
         draw.text(corner11, f'({self.dmd_nrows-1}, {self.dmd_ncols-1})', font=font, fill=0)
         return image
     
-    def displayPattern(self, real_space_title='Real-space Image', dmd_space_title='DMD-space Image'):
+    def displayPattern(self, 
+                       real_space_title='Real-space Image', 
+                       dmd_space_title='DMD-space Image'):
         """
         Display the real-space and DMD-space image
+        --------------------
+        Parameters:
+        --------------------
+        real_space_title: str
+            Title of the real-space image, default is 'Real-space Image'
+        dmd_space_title: str
+            Title of the DMD-space image, default is 'DMD-space Image'
         """
         real_frame, dmd_frame = self.getFrameRGB()
 
@@ -354,23 +363,32 @@ class Frame(object):
         elif self.frame_type == 'RGB':
             self.dmd_frame[:, :, :] = self.real_frame[self.DMD_NROWS, self.DMD_NCOLS, :].reshape(self.dmd_nrows, self.dmd_ncols, 3)
     
-    def saveDmdArrayToImage(self, dir: str, filename: str, save_template: bool=True):
+    def saveFrameToFile(self, 
+                        path: str, 
+                        filename: str, 
+                        save_template: bool=True, 
+                        dmd_prefix='', 
+                        template_prefix='',
+                        separate_template_folder=True):
         """
         Save the DMD frame to a BMP file
         --------------------
         Parameters:
         --------------------
-        dir: str
-            Directory to save the BMP file
+        path: str
+            pathectory to save the BMP file
         filename: str
             Name of the BMP file to be saved
         save_template: bool
             True to save the real space template image, False otherwise
         """
-        if os.path.exists(dir) == False: os.makedirs(dir)
+        if os.path.exists(path) == False: os.makedirs(path)
+        if separate_template_folder and os.path.exists(path + '/template/') == False: os.makedirs(path + '/template/')
+        if separate_template_folder: temp_path = path + '/template/'
+        if filename[-4:] != '.bmp': filename += '.bmp'
 
-        dmd_filename = os.path.relpath(dir + '/pattern_' + filename)
-        template_filename = os.path.relpath(dir + '/template_' + filename)
+        dmd_filename = os.path.relpath(path + '/' + dmd_prefix + filename)
+        template_filename = os.path.relpath(temp_path + '/' + template_prefix + filename)
 
         real_frame, dmd_frame = self.getFrameRGB()
         dmd_image = Image.fromarray(dmd_frame, mode='RGB')
@@ -542,14 +560,14 @@ class GrayFrame(Frame):
         plt.title('Dithered DMD-space Image')
         plt.show()
 
-    def saveDmdArrayToImage(self, dir, filename, save_template=True, save_binary=True):
+    def saveFrameToFile(self, path, filename, save_template=True, save_binary=True):
         """
         Save the DMD frame to a BMP file
         --------------------
         Parameters:
         --------------------
-        dir: str
-            Directory to save the BMP file
+        path: str
+            pathectory to save the BMP file
         filename: str
             Name of the BMP file to be saved
         save_template: bool
@@ -557,8 +575,8 @@ class GrayFrame(Frame):
         save_binary: bool
             True to save the dithered binary image, False otherwise
         """
-        super().saveDmdArrayToImage(dir, filename, save_template)
-        if save_binary: self.binary_frame.saveDmdArrayToImage(dir + '/binary/', filename, save_template)
+        super().saveFrameToFile(path, filename, save_template)
+        if save_binary: self.binary_frame.saveFrameToFile(path + '/binary/', filename, save_template)
 
     def convertToBinaryFrame(self):
         """
@@ -1545,7 +1563,21 @@ class BinarySequence(object):
             Name of the RGB frames
         """
         for i, frame in enumerate(self.RGB_frames):
-            frame.saveDmdArrayToImage(path, f'RGB_{i+1}_'+ filename)
+            frame.saveFrameToFile(path, f'RGB_{i+1}_' + filename)
+
+    def saveBinaryFrames(self, path: str, filename: str):
+        """
+        Save the binary frames to a folder
+        --------------------
+        Parameters:
+        --------------------
+        path: str
+            Path to the folder to save the binary frames
+        filename: str
+            Name of the binary frames
+        """
+        for i, frame in enumerate(self.frames):
+            frame.saveFrameToFile(path, f'Binary_{i+1}_'+ filename)
 
     def displayRGBFrames(self, start=0, end=None):
         """
