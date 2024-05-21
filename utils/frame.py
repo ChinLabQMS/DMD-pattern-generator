@@ -724,7 +724,14 @@ class BinarySequence(object):
         if os.path.exists(path) == False: os.makedirs(path)
         filename = os.path.relpath(path + '/' + filename)
 
-        images = [Image.fromarray(frame.getFrameRGB()[0], mode='RGB') for frame in self.frames]
+        images = []
+        for i, frame in enumerate(self.frames):
+            real_frame, _ = frame.getFrameRGB()
+            image = Image.fromarray(real_frame, mode='RGB')
+            draw = ImageDraw.Draw(image)
+            font = ImageFont.truetype("arial.ttf", 80)
+            draw.text((100, 100), f'Frame: {i + 1}', font=font, fill=0)
+            images.append(image)
         images[0].save(filename, save_all=True, append_images=images[1:], duration=duration, loop=0)
         print(f'GIF file saved as: .\{filename}')
 
