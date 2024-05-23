@@ -615,21 +615,27 @@ class ColorFrame(Frame):
         self.real_frame[:, :, :] = np.asarray(image, dtype=np.uint8)
         self.updateDmdArray()
 
-    def unpackFrames(self):
+    def unpackFrames(self, format='GRB'):
         """
         Unpack the real-space image to 24 binary frames
+        --------------------
+        Parameters:
+        --------------------
+        format: str
+            Format of the packing, 'RGB' for 24-bit R-G-B, 'GRB' for 24-bit G-R-B packing order
         """
         binary_frames = [BinaryFrame() for _ in range(24)]
-        for i in range(3):
-            real_frame = self.real_frame[:, :, i]
-            dmd_frame = self.dmd_frame[:, :, i]
+        color_order = [1, 0, 2] if format == 'GRB' else [0, 1, 2]
+        for i, color in enumerate(color_order):
+            real_frame = self.real_frame[:, :, color]
+            dmd_frame = self.dmd_frame[:, :, color]
             for j in range(8):
                 binary_frames[i*8+j].real_frame[:, :] = real_frame & (0b00000001 << j)
                 binary_frames[i*8+j].dmd_frame[:, :] = dmd_frame & (0b00000001 << j)
         return binary_frames
 
 class BinarySequence(object):
-    def __init__(self, nframes: int=24) -> None:
+    def __init__(self, nframes: int=24, packing_format='GRB') -> None:
         """
         BinarySequence class is used to store a sequence of binary frames and perform operations on the sequence.
         --------------------
@@ -637,25 +643,35 @@ class BinarySequence(object):
         --------------------
         nframes: int
             Number of binary frames in the sequence
+        packing_format: str
+            Format of the packing, 'RGB' for 24-bit R-G-B, 'GRB' for 24-bit G-R-B packing order
         """
         assert isinstance(nframes, int) and nframes > 0, 'Number of frames must be a positive integer'
         self.frames = [BinaryFrame() for _ in range(nframes)]
-        self.RGB_frames = None
+        self.color_frames = None
         self.nframes = nframes
+        self.packing_format = packing_format
         self.dmd_nrows, self.dmd_ncols = self.frames[0].dmd_frame.shape
         self.real_nrows, self.real_ncols = self.frames[0].real_frame.shape
     
-    def packFramesToRGB(self):
+    def packFramesToColor(self, format='GRB'):
         """
-        Pack the binary frames to a list of RGB color frame
+        Pack the binary frames to a list of color frame
+        --------------------
+        Parameters:
+        --------------------
+        format: str
+            Format of the packing, 'RGB' for 24-bit R-G-B, 'GRB' for 24-bit G-R-B packing order
         """
-        self.RGB_frames = [ColorFrame() for _ in range(math.ceil(self.nframes / 24))]
+        self.packing_format = format
+        self.color_frames = [ColorFrame() for _ in range(math.ceil(self.nframes / 24))]
+        color_order = [1, 0, 2] if format == 'GRB' else [0, 1, 2]
         for i in range(self.nframes):
-            i_RGB = i // 24
-            i_color = (i % 24) // 8
+            i_frame = i // 24
+            i_color = color_order[(i % 24) // 8]
             i_bit = (i % 24) % 8
-            self.RGB_frames[i_RGB].real_frame[:, :, i_color] = self.RGB_frames[i_RGB].real_frame[:, :, i_color] + self.frames[i].real_frame[:, :] * (0b00000001 << i_bit)
-            self.RGB_frames[i_RGB].dmd_frame[:, :, i_color] = self.RGB_frames[i_RGB].dmd_frame[:, :, i_color] + self.frames[i].dmd_frame[:, :] * (0b00000001 << i_bit)
+            self.color_frames[i_frame].real_frame[:, :, i_color] = self.color_frames[i_frame].real_frame[:, :, i_color] + self.frames[i].real_frame[:, :] * (0b00000001 << i_bit)
+            self.color_frames[i_frame].dmd_frame[:, :, i_color] = self.color_frames[i_frame].dmd_frame[:, :, i_color] + self.frames[i].dmd_frame[:, :] * (0b00000001 << i_bit)
 
     def drawPatternOnFrame(self, i, corr, color=1, reset=True, template_color=None):
         """
@@ -678,7 +694,7 @@ class BinarySequence(object):
         assert isinstance(corr, np.ndarray) and corr.shape[1] == 2, 'Invalid coordinates'
         self.frames[i].drawPattern(corr, color, reset, template_color)
 
-    def saveRGBFrames(self, path: str, filename: str):
+    def saveColorFrames(self, path: str, filename: str):
         """
         Save the packed RGB frames to a folder
         --------------------
@@ -689,9 +705,9 @@ class BinarySequence(object):
         filename: str
             Name of the RGB frames
         """
-        if self.RGB_frames is None: self.packFramesToRGB()
-        for i, frame in enumerate(self.RGB_frames):
-            frame.saveFrameToFile(path, f'RGB_{i+1}_' + filename)
+        if self.color_frames is None: self.packFramesToColor()
+        for i, frame in enumerate(self.color_frames):
+            frame.saveFrameToFile(path, f'{self.packing_format}_{i+1}_' + filename)
 
     def saveBinaryFrames(self, path: str, filename: str):
         """
@@ -739,10 +755,10 @@ class BinarySequence(object):
         """
         Display the packed RGB frames
         """
-        if self.RGB_frames is None: self.packFramesToRGB()
-        if end is None: end = len(self.RGB_frames)
+        if self.color_frames is None: self.packFramesToColor()
+        if end is None: end = len(self.color_frames)
         for i in range(start, end):
-            self.RGB_frames[i].displayPattern(real_space_title=f'RGB_{i+1} Real Space', dmd_space_title=f'RGB_{i+1} DMD Space')
+            self.color_frames[i].displayPattern(real_space_title=f'RGB_{i+1} Real Space', dmd_space_title=f'RGB_{i+1} DMD Space')
     
     def displayBinaryFrames(self, start=0, end=None):
         """
