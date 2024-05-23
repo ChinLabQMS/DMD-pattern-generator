@@ -732,7 +732,7 @@ class BinarySequence(object):
             font = ImageFont.truetype("arial.ttf", 80)
             draw.text((100, 100), f'Frame: {i + 1}', font=font, fill=0)
             images.append(image)
-        images[0].save(filename, save_all=True, append_images=images[1:], duration=duration, loop=0)
+        images[0].save(filename, save_all=True, append_images=images[1:], duration=duration)
         print(f'GIF file saved as: .\{filename}')
 
     def displayRGBFrames(self, start=0, end=None):
