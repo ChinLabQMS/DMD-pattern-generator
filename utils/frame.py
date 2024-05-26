@@ -268,7 +268,10 @@ class Frame(object):
         real_frame[self.bg_rows, self.bg_cols, :] = np.array([255, 0, 0])
         return real_frame, dmd_frame
     
-    def fotmatTemplateImage(self, real_frame):
+    def formatTemplateImage(self, 
+                            real_frame=None, 
+                            note=None, 
+                            corner_label: bool=True):
         """
         Return a PIL Image object of the real-space image with text labels on the corners
         --------------------
@@ -276,6 +279,10 @@ class Frame(object):
         --------------------
         real_frame: array-like
             The real-space frame as an RGB frame
+        note: str
+            Note to be added to the image
+        corner_label: bool
+            True to add labels on the corners, False otherwise
             
         --------------------
         Returns:
@@ -283,26 +290,30 @@ class Frame(object):
         template: PIL Image object
             The template image in real space
         """
-        image = Image.fromarray(real_frame, mode='RGB')
-        
-        # Add labels on the corners
+        if real_frame is None: real_frame, _ = self.getFrameRGB()
+
+        image = Image.fromarray(real_frame, mode='RGB')        
         draw = ImageDraw.Draw(image)
-        font = ImageFont.truetype("arial.ttf", 30)
 
-        if self.flip:
-            offset = ((150, -150), (0, 50), (150, 0))
-        else:
-            offset = ((0, -100), (150, -150), (-50, 50))
+        # Add labels on the corners
+        if corner_label:                 
+            offset = ((150, -150), (0, 50), (150, 0)) if self.flip else ((0, -100), (150, -150), (-50, 50))
 
-        # Coordinate of corners (col, row)
-        corner00 = self.realSpace(0, 0)[1] + offset[0][1], self.realSpace(0, 0)[0] + offset[0][0]
-        corner10 = self.realSpace(self.dmd_nrows-1, 0)[1] + offset[1][1], self.realSpace(self.dmd_nrows-1, 0)[0] + offset[1][0]
-        corner11 = self.realSpace(self.dmd_nrows-1, self.dmd_ncols-1)[1] + offset[2][1], self.realSpace(self.dmd_nrows-1, self.dmd_ncols-1)[0] + offset[2][0]
+            # Coordinate of corners (col, row)
+            corner00 = self.realSpace(0, 0)[1] + offset[0][1], self.realSpace(0, 0)[0] + offset[0][0]
+            corner10 = self.realSpace(self.dmd_nrows-1, 0)[1] + offset[1][1], self.realSpace(self.dmd_nrows-1, 0)[0] + offset[1][0]
+            corner11 = self.realSpace(self.dmd_nrows-1, self.dmd_ncols-1)[1] + offset[2][1], self.realSpace(self.dmd_nrows-1, self.dmd_ncols-1)[0] + offset[2][0]
 
-        # Labels of corners (row, col)
-        draw.text(corner00, '(0, 0)', font=font, fill=0)
-        draw.text(corner10, f'({self.dmd_nrows-1}, 0)', font=font, fill=0)
-        draw.text(corner11, f'({self.dmd_nrows-1}, {self.dmd_ncols-1})', font=font, fill=0)
+            # Labels of corners (row, col)
+            font = ImageFont.truetype("arial.ttf", 30)
+            draw.text(corner00, '(0, 0)', font=font, fill=0)
+            draw.text(corner10, f'({self.dmd_nrows-1}, 0)', font=font, fill=0)
+            draw.text(corner11, f'({self.dmd_nrows-1}, {self.dmd_ncols-1})', font=font, fill=0)
+
+        # Add note to the image
+        if note is not None:
+            draw.text((100, 100), note, font=ImageFont.truetype("arial.ttf", 80), fill=0)
+        
         return image
     
     def displayPattern(self, 
@@ -393,7 +404,7 @@ class Frame(object):
         print(f'DMD pattern saved as: .\{dmd_filename}')
 
         if save_template:
-            template_image = self.fotmatTemplateImage(real_frame)
+            template_image = self.formatTemplateImage(real_frame)
             template_image.save(template_filename, mode='RGB')
             print(f'Template image saved as: .\{template_filename}')
     
@@ -615,16 +626,17 @@ class ColorFrame(Frame):
         self.real_frame[:, :, :] = np.asarray(image, dtype=np.uint8)
         self.updateDmdArray()
 
-    def unpackFrames(self, format='GRB'):
+    def unpackFramesToSequence(self, format='GRB'):
         """
-        Unpack the real-space image to 24 binary frames
+        Unpack the real-space image to 24 binary frames and use a BinarySequence object to store the frames
         --------------------
         Parameters:
         --------------------
         format: str
             Format of the packing, 'RGB' for 24-bit R-G-B, 'GRB' for 24-bit G-R-B packing order
         """
-        binary_frames = [BinaryFrame() for _ in range(24)]
+        sequence = BinarySequence(nframes=24, packing_format=format)
+        binary_frames = sequence.frames
         color_order = [1, 0, 2] if format == 'GRB' else [0, 1, 2]
         for i, color in enumerate(color_order):
             real_frame = self.real_frame[:, :, color]
@@ -632,7 +644,7 @@ class ColorFrame(Frame):
             for j in range(8):
                 binary_frames[i*8+j].real_frame[:, :] = real_frame & (0b00000001 << j)
                 binary_frames[i*8+j].dmd_frame[:, :] = dmd_frame & (0b00000001 << j)
-        return binary_frames
+        return sequence
 
 class BinarySequence(object):
     def __init__(self, nframes: int=24, packing_format='GRB') -> None:
@@ -654,7 +666,7 @@ class BinarySequence(object):
         self.dmd_nrows, self.dmd_ncols = self.frames[0].dmd_frame.shape
         self.real_nrows, self.real_ncols = self.frames[0].real_frame.shape
     
-    def packFramesToColor(self, format='GRB'):
+    def packFramesToColor(self, format='GRB', last_black:bool=False):
         """
         Pack the binary frames to a list of color frame
         --------------------
@@ -662,6 +674,8 @@ class BinarySequence(object):
         --------------------
         format: str
             Format of the packing, 'RGB' for 24-bit R-G-B, 'GRB' for 24-bit G-R-B packing order
+        last_black: bool
+            True to set the last frame of each 24-bit frame to black, False otherwise
         """
         self.packing_format = format
         self.color_frames = [ColorFrame() for _ in range(math.ceil(self.nframes / 24))]
@@ -670,6 +684,7 @@ class BinarySequence(object):
             i_frame = i // 24
             i_color = color_order[(i % 24) // 8]
             i_bit = (i % 24) % 8
+            if last_black and (i % 24 == 23) : continue
             self.color_frames[i_frame].real_frame[:, :, i_color] = self.color_frames[i_frame].real_frame[:, :, i_color] + self.frames[i].real_frame[:, :] * (0b00000001 << i_bit)
             self.color_frames[i_frame].dmd_frame[:, :, i_color] = self.color_frames[i_frame].dmd_frame[:, :, i_color] + self.frames[i].dmd_frame[:, :] * (0b00000001 << i_bit)
 
@@ -694,7 +709,13 @@ class BinarySequence(object):
         assert isinstance(corr, np.ndarray) and corr.shape[1] == 2, 'Invalid coordinates'
         self.frames[i].drawPattern(corr, color, reset, template_color)
 
-    def saveColorFrames(self, path: str, filename: str):
+    def saveRGBFrames(self, 
+                      path:str, 
+                      filename:str, 
+                      index:int=None, 
+                      index_str:str=None,
+                      save_template:bool=True,
+                      save_last_black:bool=True):
         """
         Save the packed RGB frames to a folder
         --------------------
@@ -704,10 +725,27 @@ class BinarySequence(object):
             Path to the folder to save the RGB frames
         filename: str
             Name of the RGB frames
+        index: int or None
+            Index of the RGB frames to save, None to save all frames
+        index_str: str or None
+            Index string to be added to the filename
+        save_template: bool
+            True to save the real-space template image, False to only save DMD-space image
+        save_last_black: bool
+            True to save a copy that has the last frame of each 24-bit frame to black, False otherwise
         """
-        if self.color_frames is None: self.packFramesToColor()
-        for i, frame in enumerate(self.color_frames):
-            frame.saveFrameToFile(path, f'{self.packing_format}_{i+1}_' + filename)
+        last_black = [False, True] if save_last_black else [False]
+        for b in last_black:
+            self.packFramesToColor(last_black=b)
+            filename = os.path.splitext(filename)[0] + ('_last_black' if b else '') + '.bmp'
+            if index is not None:
+                if index_str is None: index_str = str(index + 1)
+                self.color_frames[index].saveFrameToFile(path, f'{self.packing_format}_{index_str}_' + filename, 
+                                                        save_template=save_template)
+            else:
+                for i, frame in enumerate(self.color_frames):
+                    frame.saveFrameToFile(path, f'{self.packing_format}_{i+1}_' + filename,
+                                        save_template=save_template)
 
     def saveBinaryFrames(self, path: str, filename: str):
         """
@@ -742,29 +780,28 @@ class BinarySequence(object):
 
         images = []
         for i, frame in enumerate(self.frames):
-            real_frame, _ = frame.getFrameRGB()
-            image = Image.fromarray(real_frame, mode='RGB')
-            draw = ImageDraw.Draw(image)
-            font = ImageFont.truetype("arial.ttf", 80)
-            draw.text((100, 100), f'Frame: {i + 1}', font=font, fill=0)
+            image = frame.formatTemplateImage(corner_label=False, note=f'Frame: {i+1} / {self.nframes}')
             images.append(image)
         images[0].save(filename, save_all=True, append_images=images[1:], duration=duration)
         print(f'GIF file saved as: .\{filename}')
 
-    def displayRGBFrames(self, start=0, end=None):
+    def displayRGBFrames(self):
         """
         Display the packed RGB frames
         """
         if self.color_frames is None: self.packFramesToColor()
-        if end is None: end = len(self.color_frames)
-        for i in range(start, end):
+        for i in range(len(self.color_frames)):
             self.color_frames[i].displayPattern(real_space_title=f'RGB_{i+1} Real Space', dmd_space_title=f'RGB_{i+1} DMD Space')
     
-    def displayBinaryFrames(self, start=0, end=None):
+    def displayBinaryFrames(self):
         """
         Display the binary frames
         """
-        if end is None:
-            end = self.nframes
-        for i in range(start, end):
-            self.frames[i].displayPattern(real_space_title=f'Binary_{i+1} Real Space', dmd_space_title=f'Binary_{i+1} DMD Space')
+        for i in range(self.nframes):
+            if i % 24 == 0: plt.figure(figsize=(12, 8))
+            image, _ = self.frames[i].getFrameRGB()
+            plt.subplot(4, 6, i % 24 + 1)
+            plt.imshow(image)
+            plt.title(f'Frame {i+1}')
+            plt.axis('off')
+            if i % 24 == 23: plt.show()
