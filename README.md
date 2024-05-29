@@ -42,7 +42,7 @@ use the pop-up window to select modified template file, and the generated patter
 
 ### 2. Generating patterns programmatically
 There are a few pre-defined classes written in [utils](utils) module for drawing patterns on real-space frame and transform the pattern to DMD frame for projection. 
-- [utils/frame.py](utils/frame.py): `Frame` class defines the coordinate system and transformation between real-space and DMD frame. The class has a method `drawPattern` to update the real-space frame with the pattern. There are inherited classes `BinaryFrame`, `ColorFrame` and `GrayscaleFrame` for RGB and grayscale pattern respectively.
+- [utils/frame.py](utils/frame.py): `Frame` class defines the coordinate system and transformation between real-space and DMD frame. The class has a method `drawPattern` to update the real-space frame with the pattern. There are inherited classes `BinaryFrame`, `ColorFrame` and `GrayscaleFrame` for binary, RGB and grayscale pattern respectively. Additionally, it contains a class `BinarySequence` for storing a sequence of binary patterns with the ability to pack into a list of `ColorFrame` objects and save into bmp files.
 - [utils/painter.py](utils/painter.py): `Painter` class defines methods to generate coordinates of the pattern in real-space frame. There are inherited class `GrayscalePainter` for painting grayscale pattern with intensity.
 
 To demonstrate the use of the modules, there are a few notebooks:
