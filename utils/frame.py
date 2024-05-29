@@ -375,6 +375,8 @@ class Frame(object):
                         save_template: bool=True, 
                         dmd_prefix='', 
                         template_prefix='',
+                        template_note=None,
+                        template_corner_label=True,
                         separate_template_folder=True):
         """
         Save the DMD frame to a BMP file
@@ -404,7 +406,7 @@ class Frame(object):
         print(f'DMD pattern saved as: .\{dmd_filename}')
 
         if save_template:
-            template_image = self.formatTemplateImage(real_frame)
+            template_image = self.formatTemplateImage(real_frame, note=template_note, corner_label=template_corner_label)
             template_image.save(template_filename, mode='RGB')
             print(f'Template image saved as: .\{template_filename}')
     
@@ -759,7 +761,7 @@ class BinarySequence(object):
             Name of the binary frames
         """
         for i, frame in enumerate(self.frames):
-            frame.saveFrameToFile(path, f'Binary_{i+1}_'+ filename)
+            frame.saveFrameToFile(path, f'Binary_{i+1}_'+ filename, template_corner_label=False, template_note=f'Frame: {i+1} / {self.nframes}')
 
     def saveSequenceToGIF(self, path: str, filename: str, duration=200):
         """
