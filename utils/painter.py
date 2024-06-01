@@ -45,6 +45,7 @@ class Painter(object):
                     text='A', 
                     offset=(0, 0),
                     font_size=500, 
+                    stroke_width=0,
                     font='arial.ttf',
                     rotate=45):
         """
@@ -58,6 +59,8 @@ class Painter(object):
             Offset of the center of the letter with respect to the center of the grid
         font_size: int
             Font size of the letter
+        stroke_width: int
+            Width of the stroke of the letter
         font: str
             Font of the letter
         rotate: float
@@ -75,7 +78,8 @@ class Painter(object):
         mask = Image.new('L', (self.nrows, self.ncols), 0)
         draw = ImageDraw.Draw(mask)
         font = ImageFont.truetype(font, font_size)
-        draw.text((row, col), text=text, font=font, fill=255, anchor='mm')
+        draw.text((row, col), text=text, font=font, fill=255, 
+                  stroke_width=stroke_width, anchor='mm')
         mask = mask.rotate(rotate)
 
         # Find the coordinates of the points in the letter
