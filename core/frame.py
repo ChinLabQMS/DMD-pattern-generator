@@ -1,9 +1,9 @@
 from PIL import Image, ImageDraw, ImageFont
-import math
+import math, os, logging
 import numpy as np
-import os
 from numba import jit
 from matplotlib import pyplot as plt
+
 
 # DMD dimensions
 DMD_NROWS = 1140
@@ -15,7 +15,10 @@ REAL_NCOLS = DMD_NCOLS + (DMD_NROWS-1) // 2
 
 # Whether to filp the image vertically
 FLIP = True
-    
+
+
+logger = logging.getLogger(__name__)
+
 class Dither(object):
     @staticmethod
     @jit(nopython=True)
@@ -238,7 +241,7 @@ class Frame(object):
                     raise ValueError('Invalid color for RGB frame')
             else:
                 raise ValueError('Invalid color for RGB frame')
-            if ~(color.shape[-1] == 3 and np.all(color >= 0) and np.all(color <= 255)):
+            if not(color.shape[-1] == 3 and np.all(color >= 0) and np.all(color <= 255)):
                     raise ValueError('Invalid color for RGB frame')
             
         return color
@@ -403,12 +406,12 @@ class Frame(object):
         real_frame, dmd_frame = self.getFrameRGB()
         dmd_image = Image.fromarray(dmd_frame, mode='RGB')
         dmd_image.save(dmd_filename)
-        print(f'DMD pattern saved as: .\{dmd_filename}')
+        logger.info(f'DMD pattern saved as: .\{dmd_filename}')
 
         if save_template:
             template_image = self.formatTemplateImage(real_frame, note=template_note, corner_label=template_corner_label)
             template_image.save(template_filename, mode='RGB')
-            print(f'Template image saved as: .\{template_filename}')
+            logger.info(f'Template image saved as: .\{template_filename}')
     
     def setRealArray(self, color=0):
         """
@@ -785,7 +788,7 @@ class BinarySequence(object):
             image = frame.formatTemplateImage(corner_label=False, note=f'Frame: {i+1} / {self.nframes}')
             images.append(image)
         images[0].save(filename, save_all=True, append_images=images[1:], duration=duration)
-        print(f'GIF file saved as: .\{filename}')
+        logger.info(f'GIF file saved as: .\{filename}')
 
     def displayRGBFrames(self):
         """

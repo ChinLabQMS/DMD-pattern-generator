@@ -3,11 +3,13 @@ Generate calibration patterns for projector-based structured light system.
 The code is developed with python3.10 and tested on windows 10 and 11.
 
 ## Dependencies
-First, install dependencies, open a terminal under the project directory and run: 
-```
+
+It is recommended to set up a [virtual environment](https://docs.python.org/3/tutorial/venv.html) or [conda environment](https://docs.conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html) for running this code.
+
+To install dependencies, activate selected environment and open a terminal under the project directory and run:
+```bash
 pip3 install -r requirements.txt
 ```
-It is recommended to use a [virtual environment](https://docs.python.org/3/tutorial/venv.html) or [conda environment](https://docs.conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html) for running this code.
 
 ## Usage
 There are two operating modes:
@@ -34,21 +36,17 @@ The pattern in DMD frame has different aspect ratio compared to the real-space f
 
 The template file can be modified in any image editing software to reflect the desired pattern on the DMD.
 
-To generate pattern with a modified template, open a terminal window under the project folder and run 
-```
-python3 main.py
-```
-use the pop-up window to select modified template file, and the generated patterns will be saved in the same directory as the template file.
+The script to generate pattern with a modified template is [script_convert_modified_template.py](script_convert_modified_template.py). The script accepts the modified template file as input and generates and saves the pattern in DMD frame.
 
 ### 2. Generating patterns programmatically
-There are a few pre-defined classes written in [utils](utils) module for drawing patterns on real-space frame and transform the pattern to DMD frame for projection. 
-- [utils/frame.py](utils/frame.py): `Frame` class defines the coordinate system and transformation between real-space and DMD frame. The class has a method `drawPattern` to update the real-space frame with the pattern. There are inherited classes `BinaryFrame`, `ColorFrame` and `GrayscaleFrame` for binary, RGB and grayscale pattern respectively. Additionally, it contains a class `BinarySequence` for storing a sequence of binary patterns with the ability to pack into a list of `ColorFrame` objects and save into bmp files.
-- [utils/painter.py](utils/painter.py): `Painter` class defines methods to generate coordinates of the pattern in real-space frame. There are inherited class `GrayscalePainter` for painting grayscale pattern with intensity.
+There are a few pre-defined classes written in [core](core) module for drawing patterns on real-space frame and transform the pattern to DMD frame for projection. 
+- [core/frame.py](core/frame.py): `Frame` class defines the coordinate system and transformation between real-space and DMD frame. The class has a method `drawPattern` to update the real-space frame with the pattern. There are inherited classes `BinaryFrame`, `ColorFrame` and `GrayscaleFrame` for binary, RGB and grayscale pattern respectively. Additionally, it contains a class `BinarySequence` for storing a sequence of binary patterns with the ability to pack into a list of `ColorFrame` objects and save into bmp files.
+- [core/painter.py](core/painter.py): `Painter` class defines methods to generate coordinates of the pattern in real-space frame. There are inherited class `GrayscalePainter` for painting grayscale pattern with float number intensity.
 
-To demonstrate the use of the modules, there are a few notebooks:
-- [DMD_RGB_pattern_generation.ipynb](DMD_RGB_pattern_generation.ipynb)
-- [DMD_grayscale_pattern_generation.ipynb](DMD_grayscale_pattern_generation.ipynb)
-- [DMD_sequence_generation.ipynb](DMD_sequence_generation.ipynb)
+To demonstrate the use of the modules, there are a few notebooks under [notebooks](notebooks) directory:
+- [DMD_RGB_pattern_generation.ipynb](notebooks/DMD_RGB_pattern_generation.ipynb)
+- [DMD_grayscale_pattern_generation.ipynb](notebooks/DMD_grayscale_pattern_generation.ipynb)
+- [DMD_sequence_generation.ipynb](notebooks/DMD_sequence_generation.ipynb)
 
 The structure of the code is as follows:
 - Coordinate system is defined in class `Frame`, which has two attributes: Real-space array `real_frame` and DMD array `dmd_frame`. The coordinate transformation between real-space and DMD is defined in a method `realSpace(row, col)`. The `Frame` class also has a method `drawPattern(pattern, color)` to accept an array of coordinates and update those pixels with draw color on the real-space frame and reflect the changes to the DMD-space frame.

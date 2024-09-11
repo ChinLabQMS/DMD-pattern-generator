@@ -1,7 +1,7 @@
 from PIL import Image, ImageDraw, ImageFont
 from itertools import product
 import numpy as np
-from utils.frame import REAL_NROWS, REAL_NCOLS
+from .frame import REAL_NROWS, REAL_NCOLS
 
 class Painter(object):
     def __init__(self, nrows=REAL_NROWS, ncols=REAL_NCOLS) -> None:
@@ -112,10 +112,64 @@ class Painter(object):
         row, col = center_row + row_offset, center_col + col_offset
 
         # Draw a filled circle with the given radius
-        ans = [(i, j) for i in range(max(0, int(row-radius)), min(int(row+radius+1), self.nrows))\
-                for j in range(max(0, int(col-radius)), min(int(col+radius+1), self.ncols)) \
-                if (i-row)**2 + (j-col)**2 <= radius**2]
+        ans = [(i, j) for i in range(max(0, int(row - radius)), min(int(row + radius + 1), self.nrows))\
+                    for j in range(max(0, int(col - radius)), min(int(col + radius + 1), self.ncols)) \
+                    if (i-row)**2 + (j-col)**2 <= radius**2]
         return np.array(ans)
+    
+    def drawSquare(self, 
+                   radius=3, 
+                   row_offset=0, 
+                   col_offset=0):
+        """
+        Draw a square on the rectangular grid
+        --------------------
+        Parameters:
+        --------------------
+        radius: int
+            Radius of the square
+        row_offset: int
+            Row offset of the center of the square
+        col_offset: int
+            Column offset of the center of the square
+
+        --------------------
+        Returns:
+        --------------------
+        corr: array-like of shape (N, 2)
+            Coordinates of the points in the square
+        """
+        center_row, center_col = self.nrows // 2 + row_offset, self.ncols // 2 + col_offset
+        ans = [(i, j) for i in range(max(0, int(center_row - radius)), min(int(center_row + radius + 1), self.nrows))\
+                for j in range(max(0, int(center_col - radius)), min(int(center_col + radius + 1), self.ncols))]
+        return np.array(ans)
+    
+    def drawAnchorCircles(self,
+                          anchor=((0, 0), (200, 0), (0, 250)),
+                          radius=10):
+        """
+        Draw anchor circles on the rectangular grid
+        --------------------
+        Parameters:
+        --------------------
+        anchor: array-like of shape (N, 2)
+            coordinates of the anchor circles
+        radius: int
+            radius of the anchor circles
+
+        --------------------
+        Returns:
+        --------------------
+        corr: array-like of shape (N, 2)
+            Coordinates of the points in the anchor circles
+        """
+        corr = []
+        for x, y in anchor:
+            new_circle = self.drawCircle(row_offset=x, 
+                                         col_offset=y, 
+                                         radius=radius)
+            if new_circle.shape[0] != 0: corr.append(new_circle)
+        return np.concatenate(corr, axis=0)
     
     def drawArrayOfCircles(self, 
                           row_spacing=50, 
@@ -153,13 +207,8 @@ class Painter(object):
         """
         nx = self.parseRange(nx)
         ny = self.parseRange(ny)
-        corr = []
-        for i, j in product(nx, ny):
-            new_circle = self.drawCircle(row_offset=i*row_spacing+row_offset, 
-                                    col_offset=j*col_spacing+col_offset, 
-                                    radius=radius)
-            if new_circle.shape[0] != 0: corr.append(new_circle)
-        return np.concatenate(corr, axis=0)
+        anchors = [(i*row_spacing+row_offset, j*col_spacing+col_offset) for i, j in product(nx, ny)]
+        return self.drawAnchorCircles(anchor=anchors, radius=radius)
     
     def drawHorizontalLine(self, 
                            row_offset=0, 
@@ -226,7 +275,7 @@ class Painter(object):
     def drawCross(self, 
                   row_offset=0, 
                   col_offset=0, 
-                  half_width=1):
+                  width=1):
         """
         Draw a cross on the rectangular grid
         --------------------
@@ -236,8 +285,8 @@ class Painter(object):
             Row offset of the center of the cross
         col_offset: int
             Column offset of the center of the cross
-        half_width: int
-            Half width of the lines in the cross
+        width: int
+            Width of the lines in the cross
 
         --------------------
         Returns:
@@ -245,13 +294,13 @@ class Painter(object):
         corr: array-like of shape (N, 2)
             Coordinates of the points in the cross
         """
-        return np.concatenate((self.drawHorizontalLine(row_offset=row_offset, width=2*half_width, center=True),
-                               self.drawVerticalLine(col_offset=col_offset, width=2*half_width, center=True)), axis=0)
+        return np.concatenate((self.drawHorizontalLine(row_offset=row_offset, width=width, center=True),
+                               self.drawVerticalLine(col_offset=col_offset, width=width, center=True)), axis=0)
     
     def drawHorizontalLines(self, 
-                            row_spacing=50, 
+                            row_spacing=100, 
                             row_offset=0, 
-                            half_width=1, 
+                            width=1, 
                             ny=5):
         """
         Draw an array of horizontal lines on the rectangular grid
@@ -262,8 +311,8 @@ class Painter(object):
             Spacing between rows of lines
         row_offset: int
             Row offset of the center of the first line
-        half_width: int
-            Half width of the lines
+        width: int
+            Width of the lines
         ny: int | array-like
             Number of lines, or a list of row indices to draw lines on
         
@@ -277,15 +326,15 @@ class Painter(object):
         corr = []
         for i in ny:
             new_line = self.drawHorizontalLine(row_offset=i*row_spacing+row_offset, 
-                                        width=2*half_width,
+                                        width=width,
                                         center=True)
             if new_line.shape[0] != 0: corr.append(new_line)
         return np.concatenate(corr, axis=0)
     
     def drawVerticalLines(self, 
-                          col_spacing=50, 
+                          col_spacing=100, 
                           col_offset=0, 
-                          half_width=1, 
+                          width=1, 
                           nx=5):
         """
         Draw an array of vertical lines on the rectangular grid
@@ -296,8 +345,8 @@ class Painter(object):
             Spacing between columns of lines
         col_offset: int
             Column offset of the center of the first line
-        half_width: int
-            Half width of the lines
+        width: int
+            Width of the lines
         nx: int | array-like
             Number of lines, or a list of column indices to draw lines on
                   
@@ -311,7 +360,7 @@ class Painter(object):
         corr = []
         for j in nx:
             new_line = self.drawVerticalLine(col_offset=j*col_spacing+col_offset, 
-                                        width=2*half_width,
+                                        width=width,
                                         center=True)
             if new_line.shape[0] != 0: corr.append(new_line)
         return np.concatenate(corr, axis=0)
@@ -363,11 +412,11 @@ class Painter(object):
         return np.stack((rows.flatten()[mask], cols.flatten()[mask])).transpose()
     
     def drawCrosses(self, 
-                    row_spacing=50, 
-                    col_spacing=50, 
+                    row_spacing=100, 
+                    col_spacing=100, 
                     row_offset=0, 
                     col_offset=0, 
-                    half_width=1, 
+                    width=1, 
                     nx=5, 
                     ny=5):
         """
@@ -383,8 +432,8 @@ class Painter(object):
             Row offset of the center of the first cross
         col_offset: int
             Column offset of the center of the first cross
-        half_width: int
-            Half width of the lines in the crosses
+        width: int
+            Width of the lines in the crosses
         nx: int
             Number of crosses in each row
         ny: int
@@ -398,8 +447,8 @@ class Painter(object):
         """
         nx = self.parseRange(nx)
         ny = self.parseRange(ny)
-        corr = [self.drawHorizontalLines(row_spacing=row_spacing, row_offset=row_offset, half_width=half_width, ny=ny),
-                self.drawVerticalLines(col_spacing=col_spacing, col_offset=col_offset, half_width=half_width, nx=nx)]
+        corr = [self.drawHorizontalLines(row_spacing=row_spacing, row_offset=row_offset, width=width, ny=ny),
+                self.drawVerticalLines(col_spacing=col_spacing, col_offset=col_offset, width=width, nx=nx)]
         return np.concatenate(corr, axis=0)
     
     def drawAngledCross(self,
@@ -482,33 +531,6 @@ class Painter(object):
         mask = (((rows.flatten() // size) % 2 + (cols.flatten() // size) % 2) % 2).astype(bool)
         return np.stack((rows.flatten()[mask], cols.flatten()[mask])).transpose()
     
-    def drawSquare(self, 
-                   radius=3, 
-                   row_offset=0, 
-                   col_offset=0):
-        """
-        Draw a square on the rectangular grid
-        --------------------
-        Parameters:
-        --------------------
-        radius: int
-            Radius of the square
-        row_offset: int
-            Row offset of the center of the square
-        col_offset: int
-            Column offset of the center of the square
-
-        --------------------
-        Returns:
-        --------------------
-        corr: array-like of shape (N, 2)
-            Coordinates of the points in the square
-        """
-        center_row, center_col = self.nrows // 2 + row_offset, self.ncols // 2 + col_offset
-        ans = [(i, j) for i in range(max(0, center_row - radius), min(center_row + radius + 1, self.nrows))\
-                for j in range(max(0, center_col - radius), min(center_col + radius + 1, self.ncols))]
-        return np.array(ans).astype(int)
-    
     def drawArrayOfSquares(self, 
                            row_spacing=50, 
                            col_spacing=50, 
@@ -555,93 +577,6 @@ class Painter(object):
             if new_square.shape[0] != 0: corr.append(new_square)
         return np.concatenate(corr, axis=0)
     
-    def drawHorizontalStrips(self, 
-                             width=5, 
-                             row_offset=0):
-        """
-        Draw an array of horizontal strips on the rectangular grid
-        --------------------
-        Parameters:
-        --------------------
-        width: int
-            Width of the strips
-        row_offset: int
-            Row offset of the top of the first strip
-
-        --------------------
-        Returns:
-        --------------------
-        corr: array-like of shape (N, 2)
-            Coordinates of the points in the array of strips
-        """
-        corr = [self.drawHorizontalLine(row_offset=i-self.nrows//2+row_offset, width=width) for i in range(0, self.nrows - width, 2*width)]
-        return np.concatenate(corr, axis=0)
-    
-    def drawVerticalStrips(self, 
-                           width=5, 
-                           col_offset=0):
-        """
-        Draw an array of vertical strips on the rectangular grid
-        --------------------
-        Parameters:
-        --------------------
-        width: int
-            Width of the strips
-        col_offset: int
-            Column offset of the left of the first strip
-
-        --------------------
-        Returns:
-        --------------------
-        corr: array-like of shape (N, 2)
-            Coordinates of the points in the array of strips
-        """
-        corr = [self.drawVerticalLine(col_offset=j-self.ncols//2+col_offset, width=width) for j in range(0, self.ncols - width, 2*width)]
-        return np.concatenate(corr, axis=0)
-
-    def drawAngledStrips(self,
-                        angle=45,
-                        width=5,
-                        row_offset=0,
-                        col_offset=0):
-        """
-        Draw an array of angled strips on the rectangular grid
-        --------------------
-        Parameters:
-        --------------------
-        angle: float
-            Angle of the strips in degrees
-        width: int
-            Width of the strips
-        row_offset: int
-            Row offset of the top of the first strip
-        col_offset: int
-            Column offset of the left of the first strip
-
-        --------------------
-        Returns:
-        --------------------
-        corr: array-like of shape (N, 2)
-            Coordinates of the points in the array of strips
-        """
-        angle = angle % 180
-        if angle == 0:
-            return self.drawHorizontalStrips(width=width, row_offset=row_offset)
-        elif angle == 90:
-            return self.drawVerticalStrips(width=width, col_offset=col_offset)
-        
-        # Find the center coordinates
-        center_row, center_col = self.nrows // 2 + row_offset, self.ncols // 2 + col_offset
-
-        # Draw a line with the given angle
-        angle = np.deg2rad(angle)
-        rows, cols = np.meshgrid(np.arange(self.nrows), np.arange(self.ncols), indexing='ij')
-        dist = (cols - center_col) * np.sin(angle) - (rows - center_row) * np.cos(angle)
-        mask = (dist % (2*width) <= width).astype(bool).flatten()
-
-        return np.stack((rows.flatten()[mask], cols.flatten()[mask])).transpose()
-
-    
     def drawHorizontalHalfPlane(self,
                                 row_offset=0):
         """
@@ -684,31 +619,39 @@ class Painter(object):
         ans = np.array([(i, j) for i in range(self.nrows) for j in range(center_col, self.ncols)])
         return ans
     
-    def drawAnchorCircles(self,
-                          anchor=((0, 0), (200, 0), (0, 250)),
-                          radius=10):
+    def drawAngledHalfPlane(self,
+                            angle=45,
+                            row_offset=0,
+                            col_offset=0):
         """
-        Draw anchor circles on the rectangular grid
+        Draw an angled half plane on the rectangular grid
         --------------------
         Parameters:
         --------------------
-        anchor: array-like of shape (N, 2)
-            coordinates of the anchor circles
-        radius: int
-            radius of the anchor circles
+        angle: float
+            Angle of the half plane in degrees
+        row_offset: int
+            row offset of the half plane
+        col_offset: int
+            column offset of the half plane
 
         --------------------
         Returns:
         --------------------
         corr: array-like of shape (N, 2)
-            Coordinates of the points in the anchor circles
+            Coordinates of the points in the half plane
         """
-        corr = []
-        for x, y in anchor:
-            corr.append(self.drawCircle(row_offset=x, 
-                                        col_offset=y, 
-                                        radius=radius))
-        return np.concatenate(corr, axis=0)
+        angle = angle % 180
+        if angle == 0:
+            return self.drawHorizontalHalfPlane(row_offset=row_offset)
+        elif angle == 90:
+            return self.drawVerticalHalfPlane(col_offset=col_offset)
+        i, j = self.nrows // 2 + row_offset, self.ncols // 2 + col_offset
+        angle = np.deg2rad(angle)
+        rows, cols = np.meshgrid(np.arange(self.nrows), np.arange(self.ncols), indexing='ij')
+        dist = (cols - j) * np.sin(angle) - (rows - i) * np.cos(angle)
+        mask = (dist >= 0).astype(bool).flatten()
+        return np.stack((rows.flatten()[mask], cols.flatten()[mask])).transpose()
 
     def drawAnchorCirclesWithBackgroundCircles(self, 
                                                 bg_spacing=50,
