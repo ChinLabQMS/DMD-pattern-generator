@@ -25,7 +25,7 @@ class Painter(object):
         --------------------
         Parameters:
         --------------------
-        x: int | array-like
+        x: int | array-like | range | list
             int for number of elements, array-like for list of elements
 
         --------------------
@@ -39,6 +39,8 @@ class Painter(object):
             x = list(range(x))
         elif isinstance(x, range):
             x = list(x)
+        elif x is None:
+            x = list(range(-190, 100))
         return x
 
     def drawText(self, 
@@ -176,8 +178,8 @@ class Painter(object):
                           col_spacing=50, 
                           row_offset=0, 
                           col_offset=0, 
-                          nx=5, 
-                          ny=5, 
+                          nx=None, 
+                          ny=None, 
                           radius=1):
         """
         Draw an array of circles on the rectangular grid
@@ -272,6 +274,84 @@ class Painter(object):
         ans = np.array([(i, j) for i in range(self.nrows) for j in line_range])
         return ans
     
+    def drawAngledLine(self, 
+                       angle=45, 
+                       row_offset=0, 
+                       col_offset=0, 
+                       width=10,
+                       center=False):
+        """
+        Draw an angled line on the rectangular grid
+        --------------------
+        Parameters:
+        --------------------
+        angle: int
+            Angle of the line in degrees
+        row_offset: int
+            Row offset of the center of the line
+        col_offset: int
+            Column offset of the center of the line
+        width: int
+            Width of the line
+
+        --------------------
+        Returns:
+        --------------------
+        corr: array-like of shape (N, 2)
+            Coordinates of the points in the line
+        """
+        angle = angle % 180
+        if angle == 0:
+            return self.drawHorizontalLine(row_offset=row_offset, width=width, center=center)
+        elif angle == 90:
+            return self.drawVerticalLine(col_offset=col_offset, width=width, center=center)
+        
+        # Find the center coordinates
+        center_row, center_col = self.nrows // 2 + row_offset, self.ncols // 2 + col_offset
+        
+        # Draw a line with the given angle
+        angle = np.deg2rad(angle)
+        rows, cols = np.meshgrid(np.arange(self.nrows), np.arange(self.ncols), indexing='ij')
+        dist = (cols - center_col) * np.sin(angle) - (rows - center_row) * np.cos(angle)
+        if center:
+            mask = (np.abs(dist) <= width // 2).astype(bool).flatten()
+        else:
+            mask = ((dist >= 0) & (dist <= width)).astype(bool).flatten()
+        
+        return np.stack((rows.flatten()[mask], cols.flatten()[mask])).transpose()
+    
+    def drawAngledLines(self,
+                        angle=[0, 45, 90, 135],
+                        row_offset=0,
+                        col_offset=0,
+                        width=10):
+        """
+        Draw an array of angled lines on the rectangular grid
+        --------------------
+        Parameters:
+        --------------------
+        angle: array-like
+            Angle of the lines in degrees
+        row_offset: int
+            Row offset of the center of the lines
+        col_offset: int
+            Column offset of the center of the lines
+        width: int
+            Width of the lines
+
+        --------------------
+        Returns:
+        --------------------
+        corr: array-like of shape (N, 2)
+            Coordinates of the points in the array of lines
+        """
+        angle = self.parseRange(angle)
+        corr = []
+        for a in angle:
+            new_line = self.drawAngledLine(angle=a, row_offset=row_offset, col_offset=col_offset, width=width, center=True)
+            if new_line.shape[0] != 0: corr.append(new_line)
+        return np.concatenate(corr, axis=0)
+
     def drawCross(self, 
                   row_offset=0, 
                   col_offset=0, 
@@ -365,52 +445,6 @@ class Painter(object):
             if new_line.shape[0] != 0: corr.append(new_line)
         return np.concatenate(corr, axis=0)
     
-    def drawAngledLine(self, 
-                       angle=45, 
-                       row_offset=0, 
-                       col_offset=0, 
-                       width=10,
-                       center=False):
-        """
-        Draw an angled line on the rectangular grid
-        --------------------
-        Parameters:
-        --------------------
-        angle: int
-            Angle of the line in degrees
-        row_offset: int
-            Row offset of the center of the line
-        col_offset: int
-            Column offset of the center of the line
-        width: int
-            Width of the line
-
-        --------------------
-        Returns:
-        --------------------
-        corr: array-like of shape (N, 2)
-            Coordinates of the points in the line
-        """
-        angle = angle % 180
-        if angle == 0:
-            return self.drawHorizontalLine(row_offset=row_offset, width=width, center=center)
-        elif angle == 90:
-            return self.drawVerticalLine(col_offset=col_offset, width=width, center=center)
-        
-        # Find the center coordinates
-        center_row, center_col = self.nrows // 2 + row_offset, self.ncols // 2 + col_offset
-        
-        # Draw a line with the given angle
-        angle = np.deg2rad(angle)
-        rows, cols = np.meshgrid(np.arange(self.nrows), np.arange(self.ncols), indexing='ij')
-        dist = (cols - center_col) * np.sin(angle) - (rows - center_row) * np.cos(angle)
-        if center:
-            mask = (np.abs(dist) <= width // 2).astype(bool).flatten()
-        else:
-            mask = ((dist >= 0) & (dist <= width)).astype(bool).flatten()
-        
-        return np.stack((rows.flatten()[mask], cols.flatten()[mask])).transpose()
-    
     def drawCrosses(self, 
                     row_spacing=100, 
                     col_spacing=100, 
@@ -455,7 +489,7 @@ class Painter(object):
                         angle=45,
                         row_offset=0,
                         col_offset=0,
-                        half_width=10):
+                        width=10):
         """
         Draw an angled cross on the rectangular grid
         --------------------
@@ -467,8 +501,8 @@ class Painter(object):
             Row offset of the center of the cross
         col_offset: int
             Column offset of the center of the cross
-        half_width: int
-            Half width of the lines in the cross
+        width: int
+            Width of the lines in the cross
 
         --------------------
         Returns:
@@ -476,8 +510,8 @@ class Painter(object):
         corr: array-like of shape (N, 2)
             Coordinates of the points in the cross
         """
-        return np.concatenate((self.drawAngledLine(angle=angle, row_offset=row_offset, col_offset=col_offset, width=2*half_width, center=True),
-                               self.drawAngledLine(angle=angle+90, row_offset=row_offset, col_offset=col_offset, width=2*half_width, center=True)), axis=0)
+        return np.concatenate((self.drawAngledLine(angle=angle, row_offset=row_offset, col_offset=col_offset, width=width, center=True),
+                               self.drawAngledLine(angle=angle+90, row_offset=row_offset, col_offset=col_offset, width=width, center=True)), axis=0)
 
     def drawStar(self, 
                  row_offset=0, 
