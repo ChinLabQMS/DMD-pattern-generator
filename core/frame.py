@@ -320,8 +320,8 @@ class Frame(object):
         return image
     
     def displayPattern(self, 
-                       real_space_title='Real-space Image', 
-                       dmd_space_title='DMD-space Image'):
+                       real_space_title='Real-space image', 
+                       dmd_space_title='DMD-space image'):
         """
         Display the real-space and DMD-space image
         --------------------
@@ -398,7 +398,7 @@ class Frame(object):
         if separate_template_folder and save_template and os.path.exists(path + '/template/') == False: 
             os.makedirs(path + '/template/')
         temp_path = path if not separate_template_folder else path + '/template/'
-        if (len(filename) < 4) or (filename[-4:] != '.bmp'): filename += '.bmp'
+        if not(filename.endswith('.bmp')): filename += '.bmp'
 
         dmd_filename = os.path.relpath(path + '/' + dmd_prefix + filename)
         template_filename = os.path.relpath(temp_path + '/' + template_prefix + filename)
@@ -427,7 +427,7 @@ class Frame(object):
         self.updateDmdArray()
     
     def drawPattern(self,
-                    corr, 
+                    corr=None, 
                     color=1, 
                     reset=True, 
                     template_color=None, 
@@ -459,6 +459,7 @@ class Frame(object):
                 else:
                     template_color = 0
             self.setRealArray(color=template_color)
+        if corr is None: return
         
         # Draw a pattern on real-space array
         self.real_frame[corr[:, 0].astype(int), corr[:, 1].astype(int)] = color
