@@ -44,12 +44,12 @@ class Painter(object):
         return x
 
     def drawText(self, 
-                    text='A', 
-                    offset=(0, 0),
-                    font_size=500, 
-                    stroke_width=0,
-                    font='arial.ttf',
-                    rotate=45):
+                text='A', 
+                offset=(0, 0),
+                font_size=500, 
+                stroke_width=0,
+                font='arial.ttf',
+                rotate=45):
         """
         Draw text on the rectangular grid
         --------------------
