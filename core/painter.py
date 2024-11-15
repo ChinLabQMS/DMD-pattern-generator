@@ -487,6 +487,7 @@ class Painter(object):
     
     def drawAngledCross(self,
                         angle=45,
+                        angle2=None,
                         row_offset=0,
                         col_offset=0,
                         width=10):
@@ -497,6 +498,8 @@ class Painter(object):
         --------------------
         angle: float
             Angle of the cross in degrees
+        angle2: float
+            Angle of the second line of the cross in degrees
         row_offset: int
             Row offset of the center of the cross
         col_offset: int
@@ -510,8 +513,9 @@ class Painter(object):
         corr: array-like of shape (N, 2)
             Coordinates of the points in the cross
         """
+        if angle2 is None: angle2 = angle + 90
         return np.concatenate((self.drawAngledLine(angle=angle, row_offset=row_offset, col_offset=col_offset, width=width, center=True),
-                               self.drawAngledLine(angle=angle+90, row_offset=row_offset, col_offset=col_offset, width=width, center=True)), axis=0)
+                               self.drawAngledLine(angle=angle2, row_offset=row_offset, col_offset=col_offset, width=width, center=True)), axis=0)
 
     def drawStar(self, 
                  row_offset=0, 
