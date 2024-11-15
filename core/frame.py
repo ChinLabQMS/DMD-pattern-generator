@@ -334,14 +334,12 @@ class Frame(object):
         """
         real_frame, dmd_frame = self.getFrameRGB()
 
-        plt.subplots(figsize=(15, 30))
+        plt.figure(figsize=(15, 8))
         plt.subplot(1, 2, 1)
         plt.imshow(real_frame)
-        plt.box(True)
         plt.title(real_space_title)
         plt.subplot(1, 2, 2)
         plt.imshow(dmd_frame)
-        plt.box(True)
         plt.title(dmd_space_title)
         plt.show()
     

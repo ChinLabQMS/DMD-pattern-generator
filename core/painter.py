@@ -40,7 +40,7 @@ class Painter(object):
         elif isinstance(x, range):
             x = list(x)
         elif x is None:
-            x = list(range(-190, 100))
+            x = list(range(-100, 100))
         return x
 
     def drawText(self, 
@@ -173,6 +173,33 @@ class Painter(object):
             if new_circle.shape[0] != 0: corr.append(new_circle)
         return np.concatenate(corr, axis=0)
     
+    def drawAnchorSquares(self,
+                            anchor=((0, 0), (200, 0), (0, 250)),
+                            radius=10):
+        """
+        Draw anchor squares on the rectangular grid
+        --------------------
+        Parameters:
+        --------------------
+        anchor: array-like of shape (N, 2)
+            coordinates of the anchor squares
+        radius: int
+            radius of the anchor squares
+
+        --------------------
+        Returns:
+        --------------------
+        corr: array-like of shape (N, 2)
+            Coordinates of the points in the anchor squares
+        """
+        corr = []
+        for x, y in anchor:
+            new_square = self.drawSquare(row_offset=x, 
+                                         col_offset=y, 
+                                         radius=radius)
+            if new_square.shape[0] != 0: corr.append(new_square)
+        return np.concatenate(corr, axis=0)
+    
     def drawArrayOfCircles(self, 
                           row_spacing=50, 
                           col_spacing=50, 
@@ -207,11 +234,152 @@ class Painter(object):
         corr: array-like of shape (N, 2)
             Coordinates of the points in the arrays of circles
         """
+        return self.drawArrayOfCirclesAngled(angle=0,
+                                            row_spacing=row_spacing,
+                                            col_spacing=col_spacing,
+                                            row_offset=row_offset,
+                                            col_offset=col_offset,
+                                            nx=nx,
+                                            ny=ny,
+                                            radius=radius)
+    
+
+    def drawArrayOfCirclesAngled(self,
+                                angle=45,
+                                row_spacing=50,
+                                col_spacing=50,
+                                row_offset=0,
+                                col_offset=0,
+                                nx=None,
+                                ny=None,
+                                radius=5):
+        """
+        Draw an array of circles on the rectangular grid
+        --------------------
+        Parameters:
+        --------------------
+        angle: float
+            Angle of the circles in degrees
+        row_spacing: int
+            Spacing between rows of circles
+        col_spacing: int    
+            Spacing between columns of circles
+        row_offset: int
+            Row offset of the center of the first circle
+        col_offset: int
+            Column offset of the center of the first circle
+        nx: int
+            Number of circles in each row
+        ny: int
+            Number of circles in each column
+        radius: int
+            Radius of the circles
+
+        --------------------
+        Returns:
+        --------------------
+        corr: array-like of shape (N, 2)
+            Coordinates of the points in the arrays of circles
+        """
         nx = self.parseRange(nx)
         ny = self.parseRange(ny)
-        anchors = [(i*row_spacing+row_offset, j*col_spacing+col_offset) for i, j in product(nx, ny)]
+        anchors = np.array([(i*row_spacing+row_offset, j*col_spacing+col_offset) 
+                            for i, j in product(nx, ny)])
+        rotation_matrix = np.array([[np.cos(np.deg2rad(angle)), -np.sin(np.deg2rad(angle))],
+                                    [np.sin(np.deg2rad(angle)), np.cos(np.deg2rad(angle))]])
+        anchors = anchors @ rotation_matrix
         return self.drawAnchorCircles(anchor=anchors, radius=radius)
     
+    def drawArrayOfSquares(self, 
+                        row_spacing=50, 
+                        col_spacing=50, 
+                        row_offset=0, 
+                        col_offset=0, 
+                        nx=None, 
+                        ny=None, 
+                        radius=3):
+        """
+        Draw an array of squares on the rectangular grid
+
+        --------------------
+        Parameters:
+        --------------------
+        row_spacing: int
+            Spacing between rows of squares
+        col_spacing: int
+            Spacing between columns of squares
+        row_offset: int
+            Row offset of the center of the first square
+        col_offset: int
+            Column offset of the center of the first square
+        nx: int
+            Number of squares in each row
+        ny: int
+            Number of squares in each column
+        radius: int
+            Radius of the squares
+
+        --------------------
+        Returns:
+        --------------------
+        corr: array-like of shape (N, 2)
+            Coordinates of the points in the array of squares
+        """
+        return self.drawArrayOfSquaresAngled(angle=0,
+                                            row_spacing=row_spacing,
+                                            col_spacing=col_spacing,
+                                            row_offset=row_offset,
+                                            col_offset=col_offset,
+                                            nx=nx,
+                                            ny=ny,
+                                            radius=radius)
+
+    def drawArrayOfSquaresAngled(self,
+                                angle=45,
+                                row_spacing=50,
+                                col_spacing=50,
+                                row_offset=0,
+                                col_offset=0,
+                                nx=None,
+                                ny=None,
+                                radius=3):
+        """
+        Draw an array of squares on the rectangular grid
+        --------------------
+        Parameters:
+        --------------------
+        angle: float
+            Angle of the squares in degrees
+        row_spacing: int
+            Spacing between rows of squares
+        col_spacing: int
+            Spacing between columns of squares
+        row_offset: int
+            Row offset of the center of the first square
+        col_offset: int
+            Column offset of the center of the first square
+        nx: int
+            Number of squares in each row
+        ny: int
+            Number of squares in each column
+        radius: int
+            Radius of the squares
+
+        --------------------
+        Returns:
+        --------------------
+        corr: array-like of shape (N, 2)
+            Coordinates of the points in the array of squares
+        """
+        nx = self.parseRange(nx)
+        ny = self.parseRange(ny)
+        anchors = np.array([(i*row_spacing+row_offset, j*col_spacing+col_offset) 
+                            for i, j in product(nx, ny)])
+        rotation_matrix = np.array([[np.cos(np.deg2rad(angle)), -np.sin(np.deg2rad(angle))],
+                                    [np.sin(np.deg2rad(angle)), np.cos(np.deg2rad(angle))]])
+        anchors = anchors @ rotation_matrix
+        return self.drawAnchorSquares(anchor=anchors, radius=radius)
+
     def drawHorizontalLine(self, 
                            row_offset=0, 
                            width=1,
@@ -568,52 +736,6 @@ class Painter(object):
         rows, cols = np.meshgrid(np.arange(self.nrows), np.arange(self.ncols), indexing='ij')
         mask = (((rows.flatten() // size) % 2 + (cols.flatten() // size) % 2) % 2).astype(bool)
         return np.stack((rows.flatten()[mask], cols.flatten()[mask])).transpose()
-    
-    def drawArrayOfSquares(self, 
-                           row_spacing=50, 
-                           col_spacing=50, 
-                           row_offset=0, 
-                           col_offset=0, 
-                           nx=5, 
-                           ny=5, 
-                           radius=3):
-        """
-        Draw an array of squares on the rectangular grid
-
-        --------------------
-        Parameters:
-        --------------------
-        row_spacing: int
-            Spacing between rows of squares
-        col_spacing: int
-            Spacing between columns of squares
-        row_offset: int
-            Row offset of the center of the first square
-        col_offset: int
-            Column offset of the center of the first square
-        nx: int
-            Number of squares in each row
-        ny: int
-            Number of squares in each column
-        radius: int
-            Radius of the squares
-
-        --------------------
-        Returns:
-        --------------------
-        corr: array-like of shape (N, 2)
-            Coordinates of the points in the array of squares
-        """
-        nx = self.parseRange(nx)
-        ny = self.parseRange(ny)
-        
-        corr = []
-        for i, j in product(nx, ny):
-            new_square = self.drawSquare(row_offset=i*row_spacing+row_offset, 
-                                    col_offset=j*col_spacing+col_offset, 
-                                    radius=radius)
-            if new_square.shape[0] != 0: corr.append(new_square)
-        return np.concatenate(corr, axis=0)
     
     def drawHorizontalHalfPlane(self,
                                 row_offset=0):
