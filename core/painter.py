@@ -290,6 +290,50 @@ class Painter(object):
         anchors = anchors @ rotation_matrix
         return self.drawAnchorCircles(anchor=anchors, radius=radius)
     
+    def drawArrayOfCirclesLattice(self, 
+                                  spacing=100,
+                                  row_offset=0,
+                                  col_offset=0,
+                                  radius=5,
+                                  angle1=0,
+                                  angle2=90,
+                                  nx=None,
+                                  ny=None):
+        """
+        Draw an array of circles on the rectangular grid with lattice structure
+        --------------------
+        Parameters:
+        --------------------
+        spacing: int
+            Spacing between the circles
+        row_offset: int
+            Row offset of the center of the first circle
+        col_offset: int
+            Column offset of the center of the first circle
+        radius: int
+            Radius of the circles
+        angle1: float
+            Angle of the first lattice vector in degrees
+        angle2: float   
+            Angle of the second lattice vector in degrees
+
+        --------------------
+        Returns:
+        --------------------
+        corr: array-like of shape (N, 2)
+            Coordinates of the points in the arrays of circles
+        """
+        nx = self.parseRange(nx)
+        ny = self.parseRange(ny)
+        corr = []
+        a1, a2 = np.deg2rad(angle1), np.deg2rad(angle2)
+        for i, j in product(nx, ny):
+            new_circle = self.drawCircle(row_offset=i*spacing*np.cos(a1)+j*spacing*np.cos(a2)+row_offset, 
+                                         col_offset=i*spacing*np.sin(a1)+j*spacing*np.sin(a2)+col_offset,
+                                         radius=radius)
+            if new_circle.shape[0] != 0: corr.append(new_circle)
+        return np.concatenate(corr, axis=0)
+    
     def drawArrayOfSquares(self, 
                         row_spacing=50, 
                         col_spacing=50, 
@@ -403,7 +447,7 @@ class Painter(object):
             Coordinates of the points in the line
         """
         # Find the center coordinates
-        row = self.nrows // 2 + row_offset
+        row = self.nrows // 2 + int(row_offset)
         if center: 
             line_range = range(max(0, row - width // 2), min(self.nrows, row + width // 2 + 1))
         else:
@@ -434,7 +478,7 @@ class Painter(object):
             Coordinates of the points in the line
         """
         # Find the center coordinates
-        col = self.ncols // 2 + col_offset
+        col = self.ncols // 2 + int(col_offset)
         if center: 
             line_range = range(max(0, col - width // 2), min(self.ncols, col + width // 2 + 1))
         else:
@@ -444,8 +488,7 @@ class Painter(object):
     
     def drawAngledLine(self, 
                        angle=45, 
-                       row_offset=0, 
-                       col_offset=0, 
+                       offset=0,
                        width=10,
                        center=False):
         """
@@ -453,13 +496,11 @@ class Painter(object):
         --------------------
         Parameters:
         --------------------
-        angle: int
+        angle: float
             Angle of the line in degrees
-        row_offset: int
-            Row offset of the center of the line
-        col_offset: int
-            Column offset of the center of the line
-        width: int
+        offset: float
+            Offset of the center of the line
+        width: float
             Width of the line
 
         --------------------
@@ -470,15 +511,15 @@ class Painter(object):
         """
         angle = angle % 180
         if angle == 0:
-            return self.drawHorizontalLine(row_offset=row_offset, width=width, center=center)
+            return self.drawHorizontalLine(row_offset=offset, width=width, center=center)
         elif angle == 90:
-            return self.drawVerticalLine(col_offset=col_offset, width=width, center=center)
+            return self.drawVerticalLine(col_offset=offset, width=width, center=center)
         
         # Find the center coordinates
-        center_row, center_col = self.nrows // 2 + row_offset, self.ncols // 2 + col_offset
+        angle = np.deg2rad(angle)
+        center_row, center_col = self.nrows // 2 + offset * np.sin(angle), self.ncols // 2 - offset * np.cos(angle) 
         
         # Draw a line with the given angle
-        angle = np.deg2rad(angle)
         rows, cols = np.meshgrid(np.arange(self.nrows), np.arange(self.ncols), indexing='ij')
         dist = (cols - center_col) * np.sin(angle) - (rows - center_row) * np.cos(angle)
         if center:
@@ -488,7 +529,7 @@ class Painter(object):
         
         return np.stack((rows.flatten()[mask], cols.flatten()[mask])).transpose()
     
-    def drawAngledLines(self,
+    def drawAngledLinesBundle(self,
                         angle=[0, 45, 90, 135],
                         row_offset=0,
                         col_offset=0,
@@ -516,7 +557,46 @@ class Painter(object):
         angle = self.parseRange(angle)
         corr = []
         for a in angle:
-            new_line = self.drawAngledLine(angle=a, row_offset=row_offset, col_offset=col_offset, width=width, center=True)
+            new_line = self.drawAngledLine(angle=a, 
+                                           offset=row_offset * np.sin(np.deg2rad(a)) - col_offset * np.cos(np.deg2rad(a)), 
+                                           width=width, center=True)
+            if new_line.shape[0] != 0: corr.append(new_line)
+        return np.concatenate(corr, axis=0)
+
+    def drawAngledLines(self,
+                        angle=45,
+                        spacing=100,
+                        offset=0,
+                        width=10,
+                        nx=5):
+        """
+        Draw an array of parallel lines on the rectangular grid
+        --------------------
+        Parameters:
+        --------------------
+        angle: float
+            Angle of the lines in degrees
+        spacing: int
+            Spacing between the lines
+        offset: float
+            Offset of the center of the first line
+        width: int
+            Width of the lines
+        nx: int | array-like
+            Number of lines, or a list of row indices to draw lines on
+
+        --------------------
+        Returns:
+        --------------------
+        corr: array-like of shape (N, 2)
+            Coordinates of the points in the array of lines
+        """
+        nx = self.parseRange(nx)
+        corr = []
+        for i in nx:
+            new_line = self.drawAngledLine(angle=angle, 
+                                           offset=i*spacing+offset,
+                                           width=width, center=True)
             if new_line.shape[0] != 0: corr.append(new_line)
         return np.concatenate(corr, axis=0)
 
