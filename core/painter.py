@@ -517,7 +517,7 @@ class Painter(object):
         
         # Find the center coordinates
         angle = np.deg2rad(angle)
-        center_row, center_col = self.nrows // 2 + offset * np.sin(angle), self.ncols // 2 - offset * np.cos(angle) 
+        center_row, center_col = self.nrows // 2 - offset * np.cos(angle), self.ncols // 2 + offset * np.sin(angle)
         
         # Draw a line with the given angle
         rows, cols = np.meshgrid(np.arange(self.nrows), np.arange(self.ncols), indexing='ij')
@@ -596,6 +596,36 @@ class Painter(object):
         for i in nx:
             new_line = self.drawAngledLine(angle=angle, 
                                            offset=i*spacing+offset,
+                                           width=width, center=True)
+            if new_line.shape[0] != 0: corr.append(new_line)
+        return np.concatenate(corr, axis=0)
+    
+    def drawAngledLinesOffset(self,
+                              angle=45,
+                              offset=[0],
+                              width=10):
+        """
+        Draw an array of parallel lines on the rectangular grid
+        --------------------
+        Parameters:
+        --------------------
+        angle: float
+            Angle of the lines in degrees
+        offset: array-like
+            Offset of the center of the lines
+        width: int
+            Width of the lines
+
+        --------------------
+        Returns:
+        --------------------
+        corr: array-like of shape (N, 2)
+            Coordinates of the points in the array of lines
+        """
+        corr = []
+        for ofs in offset:
+            new_line = self.drawAngledLine(angle=angle, 
+                                           offset=ofs,
                                            width=width, center=True)
             if new_line.shape[0] != 0: corr.append(new_line)
         return np.concatenate(corr, axis=0)
