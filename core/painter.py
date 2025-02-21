@@ -119,6 +119,37 @@ class Painter(object):
                     if (i-row)**2 + (j-col)**2 <= radius**2]
         return np.array(ans)
     
+    def drawCircleOutline(self,
+                            row_offset=0,
+                            col_offset=0,
+                            radius1=50,
+                            radius2=40):
+        """
+        Draw an outlined circle on the rectangular grid
+        --------------------
+        Parameters:
+        --------------------
+        row_offset: int
+            Row offset of the center of the circle
+        col_offset: int
+            Column offset of the center of the circle
+        radius1: int
+            Outer radius of the circle
+        radius2: int
+            Inner radius of the circle
+
+        --------------------
+        Returns:
+        --------------------
+        corr: array-like of shape (N, 2)
+            Coordinates of the points in the outlined circle
+        """
+        center_row, center_col = self.nrows // 2 + row_offset, self.ncols // 2 + col_offset
+        ans = [(i, j) for i in range(max(0, int(center_row - radius1)), min(int(center_row + radius1 + 1), self.nrows))\
+                for j in range(max(0, int(center_col - radius1)), min(int(center_col + radius1 + 1), self.ncols))\
+                if (i-center_row)**2 + (j-center_col)**2 <= radius1**2 and (i-center_row)**2 + (j-center_col)**2 >= radius2**2]
+        return np.array(ans)
+    
     def drawSquare(self, 
                    radius=3, 
                    row_offset=0, 
@@ -170,6 +201,37 @@ class Painter(object):
             new_circle = self.drawCircle(row_offset=x, 
                                          col_offset=y, 
                                          radius=radius)
+            if new_circle.shape[0] != 0: corr.append(new_circle)
+        return np.concatenate(corr, axis=0)
+    
+    def drawAnchorCircleOutlines(self,
+                                anchor=((0, 0), (200, 0), (0, 250)),
+                                radius1=10,
+                                radius2=5):
+        """
+        Draw anchor circle outlines on the rectangular grid
+        --------------------
+        Parameters:
+        --------------------
+        anchor: array-like of shape (N, 2)
+            coordinates of the anchor circles
+        radius1: float
+            outer radius of the anchor circles
+        radius2: float
+            inner radius of the anchor circles
+        
+        --------------------
+        Returns:
+        --------------------
+        corr: array-like of shape (N, 2)
+            Coordinates of the points in the anchor circle outlines
+        """
+        corr = []
+        for x, y in anchor:
+            new_circle = self.drawCircleOutline(row_offset=x, 
+                                                col_offset=y, 
+                                                radius1=radius1,
+                                                radius2=radius2)
             if new_circle.shape[0] != 0: corr.append(new_circle)
         return np.concatenate(corr, axis=0)
     
@@ -489,6 +551,8 @@ class Painter(object):
     def drawAngledLine(self, 
                        angle=45, 
                        offset=0,
+                       row_offset=None,
+                       col_offset=None,
                        width=10,
                        center=False):
         """
@@ -499,7 +563,11 @@ class Painter(object):
         angle: float
             Angle of the line in degrees
         offset: float
-            Offset of the center of the line
+            Offset of the center of the line, optional if row_offset and col_offset are given
+        row_offset: float
+            Row offset of the center of the line, optional if offset is given
+        col_offset: float
+            Column offset of the center of the line, optional if offset is given
         width: float
             Width of the line
 
@@ -509,16 +577,13 @@ class Painter(object):
         corr: array-like of shape (N, 2)
             Coordinates of the points in the line
         """
-        angle = angle % 180
-        if angle == 0:
-            return self.drawHorizontalLine(row_offset=offset, width=width, center=center)
-        elif angle == 90:
-            return self.drawVerticalLine(col_offset=offset, width=width, center=center)
-        
         # Find the center coordinates
-        angle = np.deg2rad(angle)
-        center_row, center_col = self.nrows // 2 - offset * np.cos(angle), self.ncols // 2 + offset * np.sin(angle)
-        
+        angle = np.deg2rad(angle % 180)
+        if row_offset is not None and col_offset is not None:
+            center_row, center_col = self.nrows // 2 + row_offset, self.ncols // 2 + col_offset
+        else:
+            center_row, center_col = self.nrows // 2 - offset * np.cos(angle), self.ncols // 2 + offset * np.sin(angle)
+
         # Draw a line with the given angle
         rows, cols = np.meshgrid(np.arange(self.nrows), np.arange(self.ncols), indexing='ij')
         dist = (cols - center_col) * np.sin(angle) - (rows - center_row) * np.cos(angle)
@@ -567,6 +632,8 @@ class Painter(object):
                         angle=45,
                         spacing=100,
                         offset=0,
+                        row_offset=None,
+                        col_offset=None,
                         width=10,
                         nx=5):
         """
@@ -579,7 +646,11 @@ class Painter(object):
         spacing: int
             Spacing between the lines
         offset: float
-            Offset of the center of the first line
+            Offset of the center of the first line, optional if row_offset and col_offset are given
+        row_offset: float
+            Row offset of the center of the lines, optional if offset is given
+        col_offset: float
+            Column offset of the center of the lines, optional if offset is given
         width: int
             Width of the lines
         nx: int | array-like
@@ -593,6 +664,8 @@ class Painter(object):
         """
         nx = self.parseRange(nx)
         corr = []
+        if row_offset is not None and col_offset is not None:
+            offset = row_offset * np.sin(np.deg2rad(angle)) - col_offset * np.cos(np.deg2rad(angle))
         for i in nx:
             new_line = self.drawAngledLine(angle=angle, 
                                            offset=i*spacing+offset,
