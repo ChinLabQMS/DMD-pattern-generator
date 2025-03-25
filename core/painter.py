@@ -570,7 +570,7 @@ class Painter(object):
             Coordinates of the points in the line
         """
         rows, cols = np.meshgrid(np.arange(self.nrows), np.arange(self.ncols), indexing='ij')
-        mask = (np.abs(A * cols + B * rows + C) <= d).astype(bool).flatten()
+        mask = (np.abs(A * rows + B * cols + C) <= d).astype(bool).flatten()
         return np.stack((rows.flatten()[mask], cols.flatten()[mask])).transpose()
 
     def drawAngledLine(self, 
