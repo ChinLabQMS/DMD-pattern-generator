@@ -548,6 +548,31 @@ class Painter(object):
         ans = np.array([(i, j) for i in range(self.nrows) for j in line_range])
         return ans
     
+    def drawLineABC(self, A, B, C, d):
+        """
+        Draw a line with equation Ax + By + C = 0 on the rectangular grid
+        --------------------
+        Parameters:
+        --------------------
+        A: float
+            Coefficient of x in the line equation
+        B: float
+            Coefficient of y in the line equation
+        C: float
+            Constant term in the line equation
+        d: float
+            Width of the line
+
+        --------------------
+        Returns:
+        --------------------
+        corr: array-like of shape (N, 2)
+            Coordinates of the points in the line
+        """
+        rows, cols = np.meshgrid(np.arange(self.nrows), np.arange(self.ncols), indexing='ij')
+        mask = (np.abs(A * cols + B * rows + C) <= d).astype(bool).flatten()
+        return np.stack((rows.flatten()[mask], cols.flatten()[mask])).transpose()
+
     def drawAngledLine(self, 
                        angle=45, 
                        offset=0,
