@@ -119,6 +119,32 @@ class Painter(object):
                     if (i-row)**2 + (j-col)**2 <= radius**2]
         return np.array(ans)
     
+    def drawCircleXY(self, 
+                     x, y, radius):
+        """
+        Draw a filled circle on the rectangular grid
+        --------------------
+        Parameters:
+        --------------------
+        x: float
+            x coordinate of the center of the circle
+        y: float
+            y coordinate of the center of the circle
+        radius: float
+            Radius of the circle
+        
+        --------------------
+        Returns:
+        --------------------
+        corr: array-like of shape (N, 2)
+            Coordinates of the points in the circle
+        """
+        ans = [(i, j) for i in range(max(0, int(x - radius)), min(int(x + radius + 1), self.nrows))\
+                    for j in range(max(0, int(y - radius)), min(int(y + radius + 1), self.ncols)) \
+                    if (i-x)**2 + (j-y)**2 <= radius**2]
+        return np.array(ans)
+
+
     def drawCircleOutline(self,
                             row_offset=0,
                             col_offset=0,
@@ -570,7 +596,7 @@ class Painter(object):
             Coordinates of the points in the line
         """
         rows, cols = np.meshgrid(np.arange(self.nrows), np.arange(self.ncols), indexing='ij')
-        mask = (np.abs(A * rows + B * cols + C) <= d).astype(bool).flatten()
+        mask = (np.abs(A * rows + B * cols + C) / np.sqrt(A ** 2 + B ** 2) <= d / 2).astype(bool).flatten()
         return np.stack((rows.flatten()[mask], cols.flatten()[mask])).transpose()
 
     def drawAngledLine(self, 
