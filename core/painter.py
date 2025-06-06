@@ -144,6 +144,30 @@ class Painter(object):
                     if (i-x)**2 + (j-y)**2 <= radius**2]
         return np.array(ans)
 
+    def drawCircleCoord(self, 
+                        coord, radius):
+        """
+        Draw a filled circle on the rectangular grid
+        --------------------
+        Parameters:
+        --------------------
+        coord: float
+               x coordinate of the center of the circle
+        radius: float
+            Radius of the circle
+        
+        --------------------
+        Returns:
+        --------------------
+        corr: array-like of shape (N, 2)
+            Coordinates of the points in the circle
+        """
+        x = coord[0]
+        y = coord[1]
+        ans = [(i, j) for i in range(max(0, int(x - radius)), min(int(x + radius + 1), self.nrows))\
+                    for j in range(max(0, int(y - radius)), min(int(y + radius + 1), self.ncols)) \
+                    if (i-x)**2 + (j-y)**2 <= radius**2]
+        return np.array(ans)
 
     def drawCircleOutline(self,
                             row_offset=0,
@@ -574,7 +598,7 @@ class Painter(object):
         ans = np.array([(i, j) for i in range(self.nrows) for j in line_range])
         return ans
     
-    def drawLineABC(self, A, B, C, d):
+    def drawLineABC(self, A, B, C, width=5):
         """
         Draw a line with equation Ax + By + C = 0 on the rectangular grid
         --------------------
@@ -586,7 +610,7 @@ class Painter(object):
             Coefficient of y in the line equation
         C: float
             Constant term in the line equation
-        d: float
+        width: float
             Width of the line
 
         --------------------
@@ -596,8 +620,37 @@ class Painter(object):
             Coordinates of the points in the line
         """
         rows, cols = np.meshgrid(np.arange(self.nrows), np.arange(self.ncols), indexing='ij')
-        mask = (np.abs(A * rows + B * cols + C) / np.sqrt(A ** 2 + B ** 2) <= d / 2).astype(bool).flatten()
+        mask = (np.abs(A * rows + B * cols + C) / np.sqrt(A ** 2 + B ** 2) <= width / 2).astype(bool).flatten()
         return np.stack((rows.flatten()[mask], cols.flatten()[mask])).transpose()
+    
+    def drawLineRV(self, R, V, width = 5):
+        """
+        Draw a line that pass through point R with direction V on the rectangular grid
+        --------------------
+        Parameters:
+        --------------------
+        R: array-like of shape (2,)
+            Coordinates of the point R (MATLAB indexing)
+        V: array-like of shape (2,)
+            Direction vector of the line
+        
+        ---------------------
+        Returns:
+        ---------------------
+        corr: array-like of shape (N, 2)
+            Coordinates of the points in the line
+        """
+        A = -V[1]
+        B = V[0]
+        C =  V[1] * (R[0] - 1) - V[0] * (R[1] - 1)
+        return self.drawLineABC(A, B, C, width)
+    
+    def drawLineTwoPoints(self, P1, P2, width=5):
+        rows, cols = np.meshgrid(np.arange(self.nrows), np.arange(self.ncols), indexing='ij')
+        coor = np.stack((rows.flatten(), cols.flatten())).transpose() - np.array(P1)
+        vec = np.array(P2) - np.array(P1)
+        proj = np.dot(coor, vec) / np.linalg.norm(vec)
+        
 
     def drawAngledLine(self, 
                        angle=45, 
