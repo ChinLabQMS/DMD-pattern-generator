@@ -643,14 +643,7 @@ class Painter(object):
         A = -V[1]
         B = V[0]
         C =  V[1] * (R[0] - 1) - V[0] * (R[1] - 1)
-        return self.drawLineABC(A, B, C, width)
-    
-    def drawLineTwoPoints(self, P1, P2, width=5):
-        rows, cols = np.meshgrid(np.arange(self.nrows), np.arange(self.ncols), indexing='ij')
-        coor = np.stack((rows.flatten(), cols.flatten())).transpose() - np.array(P1)
-        vec = np.array(P2) - np.array(P1)
-        proj = np.dot(coor, vec) / np.linalg.norm(vec)
-        
+        return self.drawLineABC(A, B, C, width)        
 
     def drawAngledLine(self, 
                        angle=45, 
